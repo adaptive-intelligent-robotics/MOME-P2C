@@ -31,9 +31,9 @@ From: airl_lab/default/airl_env:qdax_f57720d0
 
    # Enter working directory
    cd /project/
-
-    git clone https://gitlab.doc.ic.ac.uk/AIRL/research_projects/hannah_janmohamed/pc-mome-pgx .
-    git checkout $SINGULARITY_COMMIT
+   
+   git clone https://gitlab.doc.ic.ac.uk/AIRL/research_projects/hannah_janmohamed/pc-mome-pgx .
+   git checkout $SINGULARITY_COMMIT
     
 
 %runscript

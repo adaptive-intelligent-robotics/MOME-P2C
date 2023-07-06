@@ -133,20 +133,8 @@ def default_moqd_metrics(
     moqd_score = jnp.sum(repertoire_not_empty * hypervolumes)
     max_hypervolume = jnp.max(hypervolumes)
 
-    ### Calculate normalised hypervolume metrics
-    normalised_fitnesses = (repertoire.fitnesses - reference_point)/ (max_rewards - reference_point)
-    normalised_hypervolume_function = partial(compute_hypervolume, reference_point=jnp.zeros(reference_point.shape))
-    normalised_hypervolumes = jax.vmap(normalised_hypervolume_function)(normalised_fitnesses)  # num centroids
-    normalised_hypervolumes = jnp.where(repertoire_not_empty, normalised_hypervolumes, -jnp.inf)
-    normalised_moqd_score = jnp.sum(repertoire_not_empty * normalised_hypervolumes)
-    normalised_max_hypervolume = jnp.max(normalised_hypervolumes)
-
-
     max_scores = jnp.max(repertoire.fitnesses, axis=(0, 1))
     max_sum_scores = jnp.max(jnp.sum(repertoire.fitnesses, axis=-1), axis=(0, 1))
-
-    normalised_max_scores = jnp.max(normalised_fitnesses, axis=(0, 1))
-    normalised_max_sum_scores = jnp.max(jnp.sum(normalised_fitnesses, axis=-1), axis=(0, 1)) 
 
     (
         pareto_front,
@@ -157,18 +145,10 @@ def default_moqd_metrics(
         pareto_front, reference_point=reference_point
     )
 
-    normalised_pareto_front = (pareto_front - reference_point)/ (max_rewards - reference_point)
-    normalised_global_hypervolume = compute_hypervolume(
-        normalised_pareto_front, reference_point=jnp.zeros(reference_point.shape)
-    )
-
     metrics = {
         "hypervolumes": hypervolumes,
-        "normalised_hypervolumes": normalised_hypervolumes,
         "moqd_score": moqd_score,
-        "normalised_moqd_score": moqd_score,
         "max_hypervolume": max_hypervolume,
-        "normalised_max_hypervolume": normalised_max_hypervolume,
         "max_scores": max_scores,
         "min_scores": min_scores,
         "max_sum_scores": max_sum_scores,
@@ -176,7 +156,6 @@ def default_moqd_metrics(
         "num_solutions": num_solutions,
         "total_num_solutions": total_num_solutions,
         "global_hypervolume": global_hypervolume,
-        "normalised_global_hypervolume": normalised_global_hypervolume,
     }
 
     return metrics

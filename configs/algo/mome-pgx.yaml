@@ -1,0 +1,8 @@
+name: mome-pgx
+
+# Sampling
+bias_sampling: True
+
+# Emitter params
+mutation_ga_batch_size: 128
+mutation_qpg_batch_size: 64
