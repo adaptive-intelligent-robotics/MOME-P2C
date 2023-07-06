@@ -8,6 +8,7 @@ ipython
 jax==0.3.17
 jupyter
 numpy==1.22.3
+plotly==5.15.0
 protobuf==3.19.4
 scikit-learn==1.0.2
 scipy==1.8.0
