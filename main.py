@@ -79,8 +79,6 @@ class ExperimentConfig:
     metrics_log_period: int
     plot_repertoire_period: int
     checkpoint_period: int
-    save_checkpoint_visualisations: bool
-    save_final_visualisations: bool
     num_save_visualisations: int
 
 
@@ -340,6 +338,8 @@ def main(config: ExperimentConfig) -> None:
         # Save plot of repertoire every plot_repertoire_period
         if (iteration+1)*config.metrics_log_period % config.plot_repertoire_period == 0:
             if config.env.num_descriptor_dimensions == 2:
+                fig = plt.figure()
+                axes = fig.add_subplot(111) 
 
                 fig, axes = plot_2d_map_elites_repertoire(
                     centroids=centroids,
@@ -350,8 +350,8 @@ def main(config: ExperimentConfig) -> None:
                     vmax=config.pareto_front_max_length,
                     ax=axes
                 )
-                fig.savefig(f"{_repertoire_plots_save_dir}/num_solutions_{(iteration+1)*config.metrics_log_period}")
-
+                plt.savefig(f"{_repertoire_plots_save_dir}/num_solutions_{(iteration+1)*config.metrics_log_period}")
+                plt.close()
 
                 fig, axes = plt.subplots(figsize=(18, 6), ncols=3)
 
@@ -375,11 +375,12 @@ def main(config: ExperimentConfig) -> None:
                     ax=axes[2]
                 )
 
-                fig.savefig(f"{_repertoire_plots_save_dir}/repertoire_{(iteration+1)*config.metrics_log_period}")
+                plt.savefig(f"{_repertoire_plots_save_dir}/repertoire_{(iteration+1)*config.metrics_log_period}")
+                plt.close()
         
         # Save latest repertoire and metrics every 'checkpoint_period'
         if (iteration+1)*config.metrics_log_period  % config.checkpoint_period == 0:
-            repertoire.save(path=_final_repertoire_dir)
+            repertoire.save(path=_repertoire_dir)
             metrics_history_df = pd.DataFrame.from_dict(metrics_history,orient='index').transpose()
             metrics_history_df.to_csv(os.path.join(_metrics_dir, "metrics_history.csv"), index=False)
 
@@ -399,10 +400,10 @@ def main(config: ExperimentConfig) -> None:
     metrics_history_df.to_csv(os.path.join(_metrics_dir, "metrics_history.csv"), index=False)
 
     metrics_df = pd.DataFrame.from_dict(metrics,orient='index').transpose()
-    metrics_df.to_csv(os.path.join(_final_metrics_dir, "final_metrics.csv"), index=False)
+    metrics_df.to_csv(os.path.join(_metrics_dir, "final_metrics.csv"), index=False)
 
     # Save final repertoire
-    repertoire.save(path=_final_repertoire_dir)
+    repertoire.save(path=_repertoire_dir)
 
     # Save visualisation of best repertoire
     random_key, subkey = jax.random.split(random_key)
@@ -413,11 +414,14 @@ def main(config: ExperimentConfig) -> None:
         subkey,
         repertoire, 
         config.num_save_visualisations,
-        save_dir=_final_visualisation_dir,
+        save_dir=_visualisation_dir,
     )
 
     # Save final plots
-    if config.num_descriptor_dimensions == 2:
+    if config.env.num_descriptor_dimensions == 2:
+        fig = plt.figure()
+        axes = fig.add_subplot(111) 
+
         fig, axes = plot_2d_map_elites_repertoire(
                     centroids=centroids,
                     repertoire_fitnesses=metrics["num_solutions"][-1],
@@ -426,9 +430,10 @@ def main(config: ExperimentConfig) -> None:
                     vmin=0,
                     vmax=config.pareto_front_max_length,
                     ax=axes
+        )
 
-                )
-        fig.savefig(f"{_repertoire_plots_save_dir}/num_solutions_final")
+        plt.savefig(f"{_repertoire_plots_save_dir}/num_solutions_final")
+        plt.close()
 
         fig, axes = plt.subplots(figsize=(18, 6), ncols=3)
 
@@ -452,10 +457,9 @@ def main(config: ExperimentConfig) -> None:
             ax=axes[2]
         )
 
-        fig.savefig(f"{_repertoire_plots_save_dir}/repertoire_final")
-        
-        wandb.log({"Final Repertoire": wandb.Image(fig)})
-
+        wandb.log({"Final Repertoire": wandb.Image(plt)})
+        plt.savefig(f"{_repertoire_plots_save_dir}/repertoire_final")
+        plt.close()
 
     return repertoire, centroids, random_key, metrics, metrics_history
 
