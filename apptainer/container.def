@@ -1,0 +1,45 @@
+Bootstrap: library
+From: airl_lab/default/airl_env:qdax_f57720d0
+
+%labels
+    Author adaptive.intelligent.robotics@gmail.com
+    Version v0.0.1
+
+%files
+    requirements.txt /
+
+%environment
+   export PYTHONPATH=$PYTHONPATH:/workspace/lib/python3.8/site-packages/
+   export LD_LIBRARY_PATH="/workspace/lib:$LD_LIBRARY_PATH"
+   export PATH=$PATH:/usr/local/go/bin
+
+%post
+   export LD_LIBRARY_PATH="/workspace/lib:$LD_LIBRARY_PATH"
+
+   # Update
+   apt-get update -y
+   pip3 install --upgrade pip
+
+   # Install
+   pip3 install -r /requirements.txt
+   DEBIAN_FRONTEND=noninteractive apt-get install -y python3-git python3-matplotlib python3-pip libsdl1.2-dev libomp-dev
+   pip3 install jaxlib==0.3.15+cuda11_cudnn82 -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+   apt-get install -y python3-tk
+
+   # Create working directory
+   mkdir -p /project/
+
+   # Enter working directory
+   cd /project/
+
+    git clone https://gitlab.doc.ic.ac.uk/AIRL/research_projects/hannah_janmohamed/pc-mome-pgx .
+    git checkout $SINGULARITY_COMMIT
+    
+
+%runscript
+    cd /project/
+    # Running the script
+    echo
+    echo "Running python3 main.py "$@" "
+    echo
+    python3 main.py "$@"
