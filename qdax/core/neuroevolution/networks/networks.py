@@ -12,6 +12,7 @@ class QModule(nn.Module):
     """Q Module."""
 
     hidden_layer_sizes: Tuple[int, ...]
+    n_objectives: int = 1,
     n_critics: int = 2
 
     @nn.compact
@@ -20,7 +21,7 @@ class QModule(nn.Module):
         res = []
         for _ in range(self.n_critics):
             q = networks.MLP(
-                layer_sizes=self.hidden_layer_sizes + (1,),
+                layer_sizes=self.hidden_layer_sizes + (self.n_objectives,),
                 activation=nn.relu,
                 kernel_init=jax.nn.initializers.lecun_uniform(),
             )(hidden)
