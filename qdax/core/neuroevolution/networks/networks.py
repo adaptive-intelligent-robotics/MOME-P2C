@@ -12,7 +12,6 @@ class QModule(nn.Module):
     """Q Module."""
 
     hidden_layer_sizes: Tuple[int, ...]
-    n_objectives: int = 1,
     n_critics: int = 2
 
     @nn.compact
@@ -21,12 +20,32 @@ class QModule(nn.Module):
         res = []
         for _ in range(self.n_critics):
             q = networks.MLP(
-                layer_sizes=self.hidden_layer_sizes + (self.n_objectives,),
+                layer_sizes=self.hidden_layer_sizes + (1,),
                 activation=nn.relu,
                 kernel_init=jax.nn.initializers.lecun_uniform(),
             )(hidden)
             res.append(q)
         return jnp.concatenate(res, axis=-1)
+    
+class MOQModule(nn.Module):
+    """Multi-objective Q Module."""
+
+    hidden_layer_sizes: Tuple[int, ...]
+    n_objectives: int = 1,
+    n_critics: int = 2
+
+    @nn.compact
+    def __call__(self, obs: jnp.ndarray, actions: jnp.ndarray, preferences:jnp.ndarray) -> jnp.ndarray:
+        hidden = jnp.concatenate([obs, actions, preferences], axis=-1)
+        res = []
+        for _ in range(self.n_critics):
+            q = networks.MLP(
+                layer_sizes=self.hidden_layer_sizes + (self.n_objectives,),
+                activation=nn.relu,
+                kernel_init=jax.nn.initializers.lecun_uniform(),
+            )(hidden)
+            res.append(q)
+        return jnp.array(res)
 
 class MLP(nn.Module):
     """MLP module."""
