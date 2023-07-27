@@ -315,11 +315,13 @@ class BiasedSamplingMOMERepertoire(MOMERepertoire):
             pareto_front_fitnesses: fitness of the pareto front
             pareto_front_genotypes: corresponding genotypes
             pareto_front_descriptors: corresponding descriptors
+            pareto_front_preferences: corresponding preferences
             mask: mask of the front, to hide void parts
             new_batch_of_fitnesses: new batch of fitness that is considered
                 to be added to the pareto front
             new_batch_of_genotypes: corresponding genotypes
             new_batch_of_descriptors: corresponding descriptors
+            new_batch_of_preferences: corresponding preferences
             new_mask: corresponding mask (no one is masked)
 
         Returns:

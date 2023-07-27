@@ -269,8 +269,10 @@ class MOMERepertoire(flax.struct.PyTreeNode):
         sampled_genotypes = jax.tree_util.tree_map(
             lambda x: x.squeeze(axis=1), sampled_genotypes
         )
-        sampled_preferences = sampled_preferences.squeeze(axis=1)
-
+        sampled_preferences = jax.tree_util.tree_map(
+            lambda x: x.squeeze(axis=1), sampled_preferences
+        )
+        
         return sampled_genotypes, sampled_preferences, random_key
 
     @jax.jit
