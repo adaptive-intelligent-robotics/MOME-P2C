@@ -29,6 +29,7 @@ ExtraScores: TypeAlias = Dict[str, ArrayTree]
 
 # Pareto fronts
 T = TypeVar("T", bound=Union[Fitness, Genotype, Descriptor, jnp.ndarray])
+Preference: TypeAlias = jnp.ndarray
 
 
 class ParetoFront(Generic[T]):

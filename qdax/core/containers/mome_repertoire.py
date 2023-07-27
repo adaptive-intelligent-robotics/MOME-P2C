@@ -5,7 +5,7 @@ well as several variants."""
 from __future__ import annotations
 
 from functools import partial
-from typing import Any, Tuple, List
+from typing import Any, Callable, Tuple, List
 
 import flax
 import jax
@@ -21,6 +21,7 @@ from qdax.types import (
     Fitness,
     Genotype,
     Mask,
+    Preference,
     ParetoFront,
     RNGKey,
 )
@@ -38,7 +39,8 @@ class MOMERepertoire(flax.struct.PyTreeNode):
     When the genotypes is a PyTree, the two first dimensions are the same
     but the third will depend on the leafs.
 
-    The shape of fitnesses is: (num_centroids, pareto_front_length, num_criteria)
+    The shape of fitnesses and preferences are: 
+    (num_centroids, pareto_front_length, num_criteria)
 
     The shape of descriptors and centroids are:
     (num_centroids, num_descriptors, pareto_front_length).
@@ -49,6 +51,7 @@ class MOMERepertoire(flax.struct.PyTreeNode):
     fitnesses: Fitness
     descriptors: Descriptor
     centroids: Centroid
+    preferences: Preference
 
     def save(self, path: str = "./") -> None:
         """Saves the repertoire on disk in the form of .npy files.
@@ -73,9 +76,10 @@ class MOMERepertoire(flax.struct.PyTreeNode):
         jnp.save(path + "fitnesses.npy", self.fitnesses)
         jnp.save(path + "descriptors.npy", self.descriptors)
         jnp.save(path + "centroids.npy", self.centroids)
+        jnp.save(path + "preferences.npy", self.preferences)
 
     @classmethod
-    def load(cls, reconstruction_fn: Callable, path: str = "./") -> MapElitesRepertoire:
+    def load(cls, reconstruction_fn: Callable, path: str = "./") -> MOMERepertoire:
         """Loads a MAP Elites Repertoire.
 
         Args:
@@ -93,12 +97,14 @@ class MOMERepertoire(flax.struct.PyTreeNode):
         fitnesses = jnp.load(path + "fitnesses.npy")
         descriptors = jnp.load(path + "descriptors.npy")
         centroids = jnp.load(path + "centroids.npy")
+        preferences = jnp.load(path + "preferences.npy")
 
         return cls(
             genotypes=genotypes,
             fitnesses=fitnesses,
             descriptors=descriptors,
             centroids=centroids,
+            preferences=preferences,
         )
 
     @property
@@ -117,10 +123,11 @@ class MOMERepertoire(flax.struct.PyTreeNode):
     def _sample_in_masked_pareto_front(
         self,
         pareto_front_genotypes: ParetoFront[Genotype],
+        pareto_front_preferences: ParetoFront[Preference],
         mask: Mask,
         random_key: RNGKey,
     ) -> Genotype:
-        """Sample one single genotype in masked pareto front.
+        """Sample one single genotype and its associated preference in masked pareto front.
 
         Note: do not retrieve a random key because this function
         is to be vmapped. The public method that uses this function
@@ -128,6 +135,7 @@ class MOMERepertoire(flax.struct.PyTreeNode):
 
         Args:
             pareto_front_genotypes: the genotypes of a pareto front
+            pareto_front_preferences: the preferences of a pareto front
             mask: a mask associated to the front
             random_key: a random key to handle stochastic operations
 
@@ -140,8 +148,14 @@ class MOMERepertoire(flax.struct.PyTreeNode):
             lambda x: jax.random.choice(random_key, x, shape=(1,), p=p),
             pareto_front_genotypes,
         )
+    
+        # Use same random key to ensure preferences correspond to the sampled genotype
+        preference_sample = jax.tree_util.tree_map(
+            lambda x: jax.random.choice(random_key, x, shape=(1,), p=p),
+            pareto_front_preferences,
+        )
 
-        return genotype_sample
+        return genotype_sample, preference_sample
 
     @partial(jax.jit, static_argnames=("num_samples",))
     def sample(self, random_key: RNGKey, num_samples: int) -> Tuple[Genotype, RNGKey]:
@@ -176,14 +190,19 @@ class MOMERepertoire(flax.struct.PyTreeNode):
             lambda x: x[cells_idx], self.genotypes
         )
 
+        pareto_front_preferences = jax.tree_util.tree_map(
+            lambda x: x[cells_idx], self.preferences
+        )
+
         # prepare second sampling function
         sample_in_fronts = jax.vmap(self._sample_in_masked_pareto_front)
 
         # sample genotypes from the pareto front
         random_key, subkey = jax.random.split(random_key)
         subkeys = jax.random.split(subkey, num=num_samples)
-        sampled_genotypes = sample_in_fronts(  # type: ignore
+        sampled_genotypes, _ = sample_in_fronts(  # type: ignore
             pareto_front_genotypes=pareto_front_genotypes,
+            pareto_front_preferences=pareto_front_preferences,
             mask=repertoire_empty[cells_idx],
             random_key=subkeys,
         )
@@ -195,16 +214,77 @@ class MOMERepertoire(flax.struct.PyTreeNode):
 
         return sampled_genotypes, random_key
 
+    @partial(jax.jit, static_argnames=("num_samples",))
+    def sample_parents_and_preferences(self, random_key: RNGKey, num_samples: int) -> Tuple[Genotype, RNGKey]:
+        """Sample elements and associated preferences in the repertoire.
+
+        This method sample a non-empty pareto front, and then sample
+        genotypes from this pareto front.
+
+        Args:
+            random_key: a random key to handle stochasticity.
+            num_samples: number of samples to retrieve from the repertoire.
+
+        Returns:
+            A sample of genotypes and a new random key.
+        """
+
+        # create sampling probability for the cells
+        repertoire_empty = jnp.any(self.fitnesses == -jnp.inf, axis=-1)
+        occupied_cells = jnp.any(~repertoire_empty, axis=-1)
+
+        p = occupied_cells / jnp.sum(occupied_cells)
+
+        # possible indices - num cells
+        indices = jnp.arange(start=0, stop=repertoire_empty.shape[0])
+
+        # choose idx - among indices of cells that are not empty
+        random_key, subkey = jax.random.split(random_key)
+        cells_idx = jax.random.choice(subkey, indices, shape=(num_samples,), p=p)
+
+        # get genotypes (front) from the chosen indices
+        pareto_front_genotypes = jax.tree_util.tree_map(
+            lambda x: x[cells_idx], self.genotypes
+        )
+
+        # get preferences (front) from the same chosen indices
+        pareto_front_preferences = jax.tree_util.tree_map(
+            lambda x: x[cells_idx], self.preferences
+        )
+
+        # prepare second sampling function
+        sample_in_fronts = jax.vmap(self._sample_in_masked_pareto_front)
+
+        # sample genotypes from the pareto front
+        random_key, subkey = jax.random.split(random_key)
+        subkeys = jax.random.split(subkey, num=num_samples)
+        sampled_genotypes, sampled_preferences = sample_in_fronts(  # type: ignore
+            pareto_front_genotypes=pareto_front_genotypes,
+            pareto_front_preferences=pareto_front_preferences,
+            mask=repertoire_empty[cells_idx],
+            random_key=subkeys,
+        )
+
+        # remove the dim coming from pareto front
+        sampled_genotypes = jax.tree_util.tree_map(
+            lambda x: x.squeeze(axis=1), sampled_genotypes
+        )
+        sampled_preferences = sampled_preferences.squeeze(axis=1)
+
+        return sampled_genotypes, sampled_preferences, random_key
+
     @jax.jit
     def _update_masked_pareto_front(
         self,
         pareto_front_fitnesses: ParetoFront[Fitness],
         pareto_front_genotypes: ParetoFront[Genotype],
         pareto_front_descriptors: ParetoFront[Descriptor],
+        pareto_front_preferences: ParetoFront[Preference],
         mask: Mask,
         new_batch_of_fitnesses: Fitness,
         new_batch_of_genotypes: Genotype,
         new_batch_of_descriptors: Descriptor,
+        new_batch_of_preferences: Preference,
         new_mask: Mask,
     ) -> Tuple[
         ParetoFront[Fitness], ParetoFront[Genotype], ParetoFront[Descriptor], Mask
@@ -216,11 +296,13 @@ class MOMERepertoire(flax.struct.PyTreeNode):
             pareto_front_fitnesses: fitness of the pareto front
             pareto_front_genotypes: corresponding genotypes
             pareto_front_descriptors: corresponding descriptors
+            pareto_front_preferences: corresponding preferences
             mask: mask of the front, to hide void parts
             new_batch_of_fitnesses: new batch of fitness that is considered
                 to be added to the pareto front
             new_batch_of_genotypes: corresponding genotypes
             new_batch_of_descriptors: corresponding descriptors
+            new_batch_of_preferences: corresponding preferences
             new_mask: corresponding mask (no one is masked)
 
         Returns:
@@ -247,6 +329,10 @@ class MOMERepertoire(flax.struct.PyTreeNode):
             [pareto_front_descriptors, new_batch_of_descriptors], axis=0
         )
 
+        cat_preferences = jnp.concatenate(
+            [pareto_front_preferences, new_batch_of_preferences], axis=0
+        )
+
         # get new front
         cat_bool_front = compute_masked_pareto_front(
             batch_of_criteria=cat_fitnesses, mask=cat_mask
@@ -269,6 +355,7 @@ class MOMERepertoire(flax.struct.PyTreeNode):
             lambda x: jnp.take(x, indices, axis=0), cat_genotypes
         )
         new_front_descriptors = jnp.take(cat_descriptors, indices, axis=0)
+        new_front_preferences = jnp.take(cat_preferences, indices, axis=0)
 
         # compute new mask
         num_front_elements = jnp.sum(cat_bool_front)
@@ -289,6 +376,9 @@ class MOMERepertoire(flax.struct.PyTreeNode):
         front_size = len(pareto_front_fitnesses)  # type: ignore
         new_front_fitness = new_front_fitness[:front_size, :]
 
+        new_front_preferences = new_front_preferences * fitness_mask
+        new_front_preferences = new_front_preferences[:front_size, :]
+
         new_front_genotypes = jax.tree_util.tree_map(
             lambda x: x * new_mask_indices[0], new_front_genotypes
         )
@@ -304,7 +394,7 @@ class MOMERepertoire(flax.struct.PyTreeNode):
 
         new_mask = ~new_mask[:front_size]
 
-        return new_front_fitness, new_front_genotypes, new_front_descriptors, new_mask, added_bool, removed_count
+        return new_front_fitness, new_front_genotypes, new_front_descriptors, new_front_preferences, new_mask, added_bool, removed_count
 
     @jax.jit
     def add(
@@ -312,6 +402,7 @@ class MOMERepertoire(flax.struct.PyTreeNode):
         batch_of_genotypes: Genotype,
         batch_of_descriptors: Descriptor,
         batch_of_fitnesses: Fitness,
+        batch_of_preferences: Preference,
     ) -> MOMERepertoire:
         """Insert a batch of elements in the repertoire.
 
@@ -319,6 +410,7 @@ class MOMERepertoire(flax.struct.PyTreeNode):
         (batch_size, genotypes_dim)
         Shape of the batch_of_descriptors: (batch_size, num_descriptors)
         Shape of the batch_of_fitnesses: (batch_size, num_criteria)
+        Shape of the batch_of_preferences: (batch_size, num_criteria)
 
         Args:
             batch_of_genotypes: a batch of genotypes that we are trying to
@@ -327,6 +419,8 @@ class MOMERepertoire(flax.struct.PyTreeNode):
                 trying to add to the repertoire.
             batch_of_fitnesses: the fitnesses of the genotypes we are trying
                 to add to the repertoire.
+            batch_of_preferences: the preferences of the genotypes we are
+                trying to add to the repertoire.
 
         Returns:
             The updated repertoire with potential new individuals.
@@ -337,16 +431,17 @@ class MOMERepertoire(flax.struct.PyTreeNode):
 
         def _add_one(
             carry: MOMERepertoire,
-            data: Tuple[Genotype, Descriptor, Fitness, jnp.ndarray],
+            data: Tuple[Genotype, Descriptor, Fitness, Preference, jnp.ndarray],
         ) -> Tuple[MOMERepertoire, Any]:
             # unwrap data
-            genotype, descriptors, fitness, index = data
+            genotype, descriptors, fitness, preferences, index = data
 
             index = index.astype(jnp.int32)
 
             # get current repertoire cell data
             cell_genotype = jax.tree_util.tree_map(lambda x: x[index][0], carry.genotypes)
             cell_fitness = carry.fitnesses[index][0]
+            cell_preferences = carry.preferences[index][0]
             cell_descriptor = carry.descriptors[index][0]
             cell_mask = jnp.any(cell_fitness == -jnp.inf, axis=-1)
 
@@ -357,6 +452,7 @@ class MOMERepertoire(flax.struct.PyTreeNode):
                 cell_fitness,
                 cell_genotype, # new pf for cell 
                 cell_descriptor,
+                cell_preferences,
                 cell_mask,
                 added_bool,
                 removed_count,
@@ -364,10 +460,12 @@ class MOMERepertoire(flax.struct.PyTreeNode):
                 pareto_front_fitnesses=cell_fitness,
                 pareto_front_genotypes=cell_genotype,
                 pareto_front_descriptors=cell_descriptor,
+                pareto_front_preferences=cell_preferences,
                 mask=cell_mask,
                 new_batch_of_fitnesses=jnp.expand_dims(fitness, axis=0),
                 new_batch_of_genotypes=new_genotypes,
                 new_batch_of_descriptors=jnp.expand_dims(descriptors, axis=0),
+                new_batch_of_preferences=jnp.expand_dims(preferences, axis=0),
                 new_mask=jnp.zeros(shape=(1,), dtype=bool),
             )
 
@@ -380,10 +478,12 @@ class MOMERepertoire(flax.struct.PyTreeNode):
             )
             new_fitnesses = carry.fitnesses.at[index].set(cell_fitness)
             new_descriptors = carry.descriptors.at[index].set(cell_descriptor)
+            new_preferences = carry.preferences.at[index].set(cell_preferences)
             carry = carry.replace(  # type: ignore
                 genotypes=new_genotypes,
                 descriptors=new_descriptors,
                 fitnesses=new_fitnesses,
+                preferences=new_preferences,
             )
 
             # return new grid
@@ -397,6 +497,7 @@ class MOMERepertoire(flax.struct.PyTreeNode):
                 batch_of_genotypes,
                 batch_of_descriptors,
                 batch_of_fitnesses,
+                batch_of_preferences,
                 batch_of_indices,
             ),
         )
@@ -410,6 +511,7 @@ class MOMERepertoire(flax.struct.PyTreeNode):
         fitnesses: Fitness,
         descriptors: Descriptor,
         centroids: Centroid,
+        preferences: Preference,
         pareto_front_max_length: int,
     ) -> Tuple[MOMERepertoire, List]:
         """
@@ -428,6 +530,8 @@ class MOMERepertoire(flax.struct.PyTreeNode):
             descriptors: descriptors of the initial genotypes
                 of shape (batch_size, num_descriptors)
             centroids: tesselation centroids of shape (batch_size, num_descriptors)
+            preferences: preferences of initial genotypes of shape:
+                (batch_size, num_criteria)
             pareto_front_max_length: maximum size of the pareto fronts
 
         Returns:
@@ -457,16 +561,21 @@ class MOMERepertoire(flax.struct.PyTreeNode):
             shape=(num_centroids, pareto_front_max_length, num_descriptors)
         )
 
+        default_preferences = -jnp.inf * jnp.ones(
+            shape=(num_centroids, pareto_front_max_length, num_criteria)
+        )
+
         # create repertoire with default values
         repertoire = MOMERepertoire(  # type: ignore
             genotypes=default_genotypes,
             fitnesses=default_fitnesses,
             descriptors=default_descriptors,
             centroids=centroids,
+            preferences=default_preferences,
         )
 
         # add first batch of individuals in the repertoire
-        new_repertoire, container_addition_metrics = repertoire.add(genotypes, descriptors, fitnesses)
+        new_repertoire, container_addition_metrics = repertoire.add(genotypes, descriptors, fitnesses, preferences)
 
         return new_repertoire, container_addition_metrics  # type: ignore
 
@@ -528,7 +637,7 @@ class MOMERepertoire(flax.struct.PyTreeNode):
         random_key, subkey = jax.random.split(random_key)
         subkeys = jax.random.split(subkey, num=num_samples)
         sampled_genotypes = sample_in_fronts(  # type: ignore
-            pareto_front_genotypes=pareto_front_genotypes,
+            pareto_front_genotypes=pareto_front,
             mask=pareto_mask,
             random_key=subkeys,
         )
@@ -547,12 +656,14 @@ class MOMERepertoire(flax.struct.PyTreeNode):
         new_fitnesses = jnp.full_like(self.fitnesses, -jnp.inf)
         new_descriptors = jnp.zeros_like(self.descriptors)
         new_genotypes = jax.tree_map(lambda x: jnp.zeros_like(x), self.genotypes)
+        new_preferences = jnp.full_like(self.preferences, -jnp.inf)
 
         return MOMERepertoire(
             genotypes=new_genotypes,
             fitnesses=new_fitnesses,
             descriptors=new_descriptors,
             centroids=self.centroids,
+            preferences=new_preferences,
         )
 
         # create default values
