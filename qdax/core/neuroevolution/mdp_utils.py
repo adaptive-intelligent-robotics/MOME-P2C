@@ -251,6 +251,8 @@ def scoring_function(
         preferences,
         {
             "transitions": data,
+            "min_rewards": jnp.min(unnormalised_rewards, axis=(0,1)),
+            "max_rewards": jnp.max(unnormalised_rewards, axis=(0,1)),
         },
         random_key,
     )

@@ -432,8 +432,13 @@ def main(config: ExperimentConfig) -> None:
             metrics_history_df = pd.DataFrame.from_dict(metrics_history,orient='index').transpose()
             metrics_history_df.to_csv(os.path.join(_metrics_dir, "metrics_history.csv"), index=False)
 
-
+    
     total_duration = time.time() - init_time
+
+    #Calculate minimum and maximum observed rewards
+    min_observed_rewards = jnp.min(metrics_history["min_rewards"], axis=0)
+    max_observed_rewards = jnp.max(metrics_history["max_rewards"], axis=0)
+
 
     logger.warning("--- FINAL METRICS ---")
     logger.warning(f"Total duration: {total_duration:.2f}s")
@@ -441,6 +446,8 @@ def main(config: ExperimentConfig) -> None:
     logger.warning(f"MOQD Score: {metrics['moqd_score'][-1]:.2f}")
     logger.warning(f"Coverage: {metrics['coverage'][-1]:.2f}%")
     logger.warning("Max Fitnesses:" + str(metrics['max_scores'][-1]))
+    logger.warning("Min Observed Rewards:" +  str(min_observed_rewards))
+    logger.warning("Max Observed Rewards:" +  str(max_observed_rewards))
 
     # Save metrics
 

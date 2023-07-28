@@ -127,6 +127,10 @@ class MOME:
         metrics = self._metrics_function(repertoire)
         metrics = self._emitter.update_added_counts(container_addition_metrics, metrics)
 
+        # store empirically observed min and max rewards
+        metrics["min_rewards"] = extra_scores["min_rewards"]
+        metrics["max_rewards"] = extra_scores["max_rewards"]
+
         return repertoire, metrics, emitter_state, random_key
 
 
@@ -190,6 +194,10 @@ class MOME:
         # update the metrics
         metrics = self._metrics_function(repertoire)
         metrics = self._emitter.update_added_counts(container_addition_metrics, metrics)
+
+        # store empirically observed min and max rewards
+        metrics["min_rewards"] = extra_scores["min_rewards"]
+        metrics["max_rewards"] = extra_scores["max_rewards"]
 
         return repertoire, emitter_state, metrics, random_key
 
