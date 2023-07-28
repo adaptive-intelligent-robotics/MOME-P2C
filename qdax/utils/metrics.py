@@ -104,7 +104,6 @@ def default_qd_metrics(repertoire: MapElitesRepertoire, qd_offset: float) -> Met
 def default_moqd_metrics(
     repertoire: MOMERepertoire, 
     reference_point: jnp.ndarray,
-    max_rewards: jnp.ndarray,
 ) -> Metrics:
     """Compute the MOQD metric given a MOME repertoire and a reference point.
 

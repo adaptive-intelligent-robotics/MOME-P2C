@@ -1,0 +1,16 @@
+name: ant_multi
+
+num_descriptor_dimensions: 4
+num_objective_functions: 2
+
+# Min and max val of BDs
+min_bd: 0. 
+max_bd: 1.
+
+# Min and Max values of rewards for reference points
+# Empirical min: [-307.27118, -3997.8]
+# Empirical max: [3339.4678, -0.2654624]
+
+min_rewards: [-0.35, -4.5]
+max_rewards: [4, 0]
+reference_point: [-350, -4500]

@@ -2,6 +2,7 @@ name: mome
 
 # Sampling
 bias_sampling: False
+preference_conditioned: False
 
 # Emitter params
 mutation_ga_batch_size: 256

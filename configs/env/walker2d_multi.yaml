@@ -1,0 +1,18 @@
+name: walker2d_multi
+
+num_descriptor_dimensions: 2
+num_objective_functions: 2
+
+# Min and max val of BDs
+min_bd: 0. 
+max_bd: 1.
+
+# Min and Max values of rewards for reference points
+# Empirical min: [-205.34937, -5.514009]
+# Emprical max: [2186.4878, -1.3155421e-05]
+
+#min_rewards: [-350, -8]
+min_rewards: [-0.21, -0.015]
+max_rewards: [2.5, 0]
+reference_point: [-210, -15]
+

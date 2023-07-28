@@ -1,0 +1,16 @@
+name: halfcheetah_multi
+
+num_descriptor_dimensions: 2
+num_objective_functions: 2
+
+# Min and max val of BDs
+min_bd: 0. 
+max_bd: 1.
+
+# Min and Max values of rewards for reference points
+# Empirical min: [-52.85332, -327.06708]
+# Empirical max:[365.48199, -0.023004716]
+
+min_rewards: [-0.1, -0.5]
+max_rewards: [0.5, 0]
+reference_point: [-100, 500]

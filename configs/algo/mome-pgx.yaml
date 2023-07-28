@@ -2,6 +2,7 @@ name: mome-pgx
 
 # Sampling
 bias_sampling: True
+preference_conditioned: False
 
 # Emitter params
 mutation_ga_batch_size: 128

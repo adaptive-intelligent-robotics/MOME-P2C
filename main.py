@@ -9,16 +9,16 @@ import time
 import visu_brax
 import wandb
 
-from brax_step_functions import play_mo_step_fn
+from brax_step_functions import play_mo_step_fn, play_pc_mo_step_fn
 from dataclasses import dataclass
 from functools import partial
 from typing import Tuple
 from omegaconf import OmegaConf
 from qdax import environments
 from qdax.core.containers.mapelites_repertoire import compute_cvt_centroids
-from qdax.core.emitters.pga_me_emitter import PGAMEConfig, MOPGAEmitter
+from qdax.core.emitters.pga_me_emitter import PGAMEConfig, MOPGAEmitter, PCMOPGAEmitter, actor_uniform_sampled_preferences
 from qdax.core.mome import MOME
-from qdax.core.neuroevolution.mdp_utils import scoring_function
+from qdax.core.neuroevolution.mdp_utils import scoring_function, preference_conditioned_scoring_function
 from qdax.core.neuroevolution.networks.networks import MLP
 from qdax.core.emitters.standard_emitters import MixingEmitter
 from qdax.core.emitters.mutation_operators import (
@@ -101,12 +101,10 @@ def main(config: ExperimentConfig) -> None:
         episode_length=config.episode_length, 
         fixed_init_state=config.fixed_init_state)
     
-    reference_point = jnp.array(config.env.min_rewards)
-    max_rewards = jnp.array(config.env.max_rewards)
+    reference_point = jnp.array(config.env.reference_point)
 
-    # Multiply min and max rewards by number of timesteps
+    # Scale reference point to episode length
     reference_point *= config.episode_length/1000
-    max_rewards *= config.episode_length/1000
 
     # Init a random key
     random_key = jax.random.PRNGKey(config.seed)
@@ -132,18 +130,23 @@ def main(config: ExperimentConfig) -> None:
     reset_fn = jax.jit(jax.vmap(env.reset))
     init_states = reset_fn(keys)
 
+    if config.algo_name == "pc-mome-pgx":
+        actor_keys = jnp.repeat(jnp.expand_dims(subkey, axis=0), repeats=config.algo.num_actor_active_samples, axis=0)
+        actor_init_states = reset_fn(actor_keys)
+
     # TO DO: save init_state  
     play_step_fn = partial(
         play_mo_step_fn,
         policy_network=policy_network,
         env=env,
+        min_rewards=jnp.array(config.env.min_rewards),
+        max_rewards=jnp.array(config.env.max_rewards),
     )  
 
     # Define a metrics function
     metrics_fn = partial(
         default_moqd_metrics,
         reference_point=jnp.array(reference_point),
-        max_rewards=jnp.array(max_rewards)
     )
 
     # Prepare the scoring function
@@ -155,6 +158,8 @@ def main(config: ExperimentConfig) -> None:
         play_step_fn=play_step_fn,
         behavior_descriptor_extractor=bd_extraction_fn,
         num_objective_functions=config.env.num_objective_functions,
+        min_rewards=jnp.array(config.env.min_rewards),
+        max_rewards=jnp.array(config.env.max_rewards),
     )
 
 
@@ -166,7 +171,7 @@ def main(config: ExperimentConfig) -> None:
     )
 
 
-    if config.algo_name == "mome-pgx":
+    if config.algo_name == "mome-pgx" or config.algo_name == "pc-mome-pgx":
         # Define the PG-emitter config
         pg_emitter_config = PGAMEConfig(
             num_objective_functions=config.env.num_objective_functions,
@@ -215,6 +220,49 @@ def main(config: ExperimentConfig) -> None:
             variation_fn=ga_variation_function,
         )
 
+    if config.algo_name == "pc-mome-pgx":
+        pc_actor_layer_sizes = config.algo.pc_actor_hidden_layer_sizes + (env.action_size,)
+        pc_actor_network = MLP(
+            layer_sizes=pc_actor_layer_sizes,
+            kernel_init=jax.nn.initializers.lecun_uniform(),
+            final_activation=jnp.tanh,
+        )
+    
+        play_pc_mo_step_function = partial(
+            play_pc_mo_step_fn,
+            policy_network=pc_actor_network,
+            env=env,
+            min_rewards=jnp.array(config.env.min_rewards),
+            max_rewards=jnp.array(config.env.max_rewards),
+        )  
+        
+        if config.algo.pc_actor_uniform_preference_sampling:
+            actor_sampling_fn = partial(actor_uniform_sampled_preferences,
+                batch_size=config.algo.num_actor_active_samples,
+                num_objectives=config.env.num_objective_functions
+            )
+
+            preference_conditioned_scoring_fn = partial(preference_conditioned_scoring_function,
+                init_states=actor_init_states,
+                episode_length=config.episode_length,
+                pc_play_step_fn=play_pc_mo_step_function,
+                behavior_descriptor_extractor=bd_extraction_fn,
+                num_objective_functions=config.env.num_objective_functions,
+                min_rewards=jnp.array(config.env.min_rewards),
+                max_rewards=jnp.array(config.env.max_rewards),
+            )
+
+        emitter = PCMOPGAEmitter(
+            config=pg_emitter_config,
+            policy_network=policy_network,
+            pc_actor_network=pc_actor_network,
+            pc_actor_scoring_function=preference_conditioned_scoring_fn,
+            pc_actor_preferences_sample_fn=actor_sampling_fn,
+            num_actor_active_samples=config.algo.num_actor_active_samples,
+            env=env,
+            variation_fn=ga_variation_function,
+        )
+
     # Set up logging functions 
     num_iterations = config.num_evaluations // config.total_batch_size
     num_loops = int(num_iterations/config.metrics_log_period)
@@ -243,7 +291,7 @@ def main(config: ExperimentConfig) -> None:
         emitter=emitter,
         metrics_function=metrics_fn,
         bias_sampling=config.algo.bias_sampling,
-
+        preference_conditioned=config.algo.preference_conditioned,
     )
 
     # Compute the centroids

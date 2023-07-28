@@ -19,6 +19,8 @@ from qdax.types import (
     Genotype,
     Metrics,
     Params,
+    Preference,
+    Reward,
     RNGKey,
 )
 
@@ -125,6 +127,55 @@ def generate_unroll(
     return state, transitions
 
 
+@partial(jax.jit, static_argnames=("pc_play_step_fn", "episode_length"))
+def generate_pc_unroll(
+    init_state: EnvState,
+    pc_actor_policy_params: Params,
+    preference: Preference,
+    random_key: RNGKey,
+    episode_length: int,
+    pc_play_step_fn: Callable[
+        [EnvState, Params, RNGKey],
+        Tuple[
+            EnvState,
+            Params,
+            RNGKey,
+            Transition,
+        ],
+    ],
+) -> Tuple[EnvState, Transition]:
+    """Generates an episode according to the agent's policy conditioned on a preference.
+    Returns the final state of the episode and the transitions of the episode.
+
+    Args:
+        init_state: first state of the rollout.
+        pc_policy_params: params of the individual.
+        preference: preference of the individual.
+        random_key: random key for stochasiticity handling.
+        episode_length: length of the rollout.
+        play_step_fn: function describing how a step need to be taken.
+
+    Returns:
+        A new state, the experienced transition.
+    """
+
+    def _scan_play_pc_step_fn(
+        carry: Tuple[EnvState, Params, RNGKey], unused_arg: Any
+    ) -> Tuple[Tuple[EnvState, Params, RNGKey], Transition]:
+        _, _, preference, _ = carry
+
+        env_state, policy_params, random_key, transitions = pc_play_step_fn(*carry)
+        return (env_state, policy_params, preference, random_key), transitions
+
+    (state, _, _, _), transitions = jax.lax.scan(
+        _scan_play_pc_step_fn,
+        (init_state, pc_actor_policy_params, preference, random_key),
+        (),
+        length=episode_length,
+    )
+    return state, transitions
+
+
 @partial(
     jax.jit,
     static_argnames=(
@@ -145,7 +196,9 @@ def scoring_function(
     ],
     behavior_descriptor_extractor: Callable[[QDTransition, jnp.ndarray], Descriptor],
     num_objective_functions: int,
-) -> Tuple[Fitness, Descriptor, ExtraScores, RNGKey]:
+    min_rewards: Reward,
+    max_rewards: Reward,
+) -> Tuple[Fitness, Descriptor, Preference, ExtraScores, RNGKey]:
     """Evaluates policies contained in policies_params in parallel in
     deterministic or pseudo-deterministic environments.
 
@@ -176,9 +229,111 @@ def scoring_function(
     fitnesses = jnp.sum(data.rewards * (1.0 - fitnesses_mask), axis=1)
     descriptors = behavior_descriptor_extractor(data, mask)
 
+    # Calculate unnormalised fitnesses
+    unnormalised_rewards = data.rewards * (max_rewards - min_rewards) + min_rewards
+    unnormalised_fitnesses = jnp.sum(unnormalised_rewards * (1.0 - fitnesses_mask), axis=1)
+
+    # Calculate preferences based on fitnesses:
+    preferences = fitnesses / jnp.transpose(jnp.expand_dims(jnp.sum(fitnesses, axis=-1), axis=0))
+    preferences = jnp.clip(preferences, 0.0, 1.0)
+
+    # Add preferences to transitions
+    tiled_preferences = jnp.repeat(
+            preferences[:, jnp.newaxis, :], episode_length, axis=1)
+    
+    data = data.replace(preference=tiled_preferences,
+                        input_preference=tiled_preferences
+    )
+
     return (
-        fitnesses,
+        unnormalised_fitnesses,
         descriptors,
+        preferences,
+        {
+            "transitions": data,
+        },
+        random_key,
+    )
+
+
+@partial(
+    jax.jit,
+    static_argnames=(
+        "episode_length",
+        "pc_play_step_fn",
+        "behavior_descriptor_extractor",
+        "num_objective_functions",
+    ),
+)
+def preference_conditioned_scoring_function(
+    pc_actor_params: Genotype,
+    input_preferences: Preference,
+    random_key: RNGKey,
+    init_states: brax.envs.State,
+    episode_length: int,
+    pc_play_step_fn: Callable[
+        [EnvState, Params, RNGKey, brax.envs.Env],
+        Tuple[EnvState, Params, RNGKey, QDTransition],
+    ],
+    behavior_descriptor_extractor: Callable[[QDTransition, jnp.ndarray], Descriptor],
+    num_objective_functions: int,
+    min_rewards: jnp.ndarray,
+    max_rewards: jnp.ndarray,
+) -> Tuple[Fitness, Descriptor, Preference, ExtraScores, RNGKey]:
+    """Evaluates policies contained in preference conditioned policies_params in parallel in
+    deterministic or pseudo-deterministic environments.
+
+    This rollout is only deterministic when all the init states are the same.
+    If the init states are fixed but different, as a policy is not necessarly
+    evaluated with the same environment everytime, this won't be determinist.
+    When the init states are different, this is not purely stochastic.
+    """
+
+    # Perform rollouts with each policy
+    random_key, subkey = jax.random.split(random_key)
+    unroll_fn = partial(
+        generate_pc_unroll,
+        random_key=subkey,
+        episode_length=episode_length,
+        pc_play_step_fn=pc_play_step_fn,
+    )
+
+    _final_state, data = jax.vmap(unroll_fn)(init_states, pc_actor_params, input_preferences)
+
+    # create a mask to extract data properly
+    is_done = jnp.clip(jnp.cumsum(data.dones, axis=1), 0, 1)
+    mask = jnp.roll(is_done, 1, axis=1)
+    mask = mask.at[:, 0].set(0)
+    fitnesses_mask = jnp.repeat(jnp.expand_dims(mask, axis=-1), repeats=num_objective_functions, axis=-1)
+
+    # Scores - add offset to ensure positive fitness (through positive rewards)
+    fitnesses = jnp.sum(data.rewards * (1.0 - fitnesses_mask), axis=1)
+    descriptors = behavior_descriptor_extractor(data, mask)
+
+    # Calculate unnormalised fitnesses
+    unnormalised_rewards = data.rewards * (max_rewards - min_rewards) + min_rewards
+    unnormalised_fitnesses = jnp.sum(unnormalised_rewards * (1.0 - fitnesses_mask), axis=1)
+
+    # Calculate achieved preferences
+    achieved_preferences = fitnesses / jnp.transpose(jnp.expand_dims(jnp.sum(fitnesses, axis=-1), axis=0))
+    achieved_preferences = jnp.clip(achieved_preferences, 0.0, 1.0)
+
+    # Add preferences to transitions
+    tiled_input_preferences = jnp.repeat(
+            input_preferences[:, jnp.newaxis, :], episode_length, axis=1)
+
+    tiled_achieved_preferences = jnp.repeat(
+            achieved_preferences[:, jnp.newaxis, :], episode_length, axis=1)
+
+
+    data = data.replace(preference=tiled_achieved_preferences,
+                        input_preference=tiled_input_preferences
+    )
+
+    return (
+        unnormalised_fitnesses,
+        descriptors,
+        achieved_preferences,
         {
             "transitions": data,
         },
@@ -205,7 +360,7 @@ def reset_based_scoring_function(
         Tuple[brax.envs.State, Params, RNGKey, QDTransition],
     ],
     behavior_descriptor_extractor: Callable[[QDTransition, jnp.ndarray], Descriptor],
-) -> Tuple[Fitness, Descriptor, ExtraScores, RNGKey]:
+) -> Tuple[Fitness, Descriptor, Preference, ExtraScores, RNGKey]:
     """Evaluates policies contained in policies_params in parallel.
     The play_reset_fn function allows for a more general scoring_function that can be
     called with different batch-size and not only with a batch-size of the same
@@ -226,7 +381,7 @@ def reset_based_scoring_function(
     reset_fn = jax.vmap(play_reset_fn)
     init_states = reset_fn(keys)
 
-    fitnesses, descriptors, extra_scores, random_key = scoring_function(
+    fitnesses, descriptors, preferences, extra_scores, random_key = scoring_function(
         policies_params=policies_params,
         random_key=random_key,
         init_states=init_states,
@@ -235,7 +390,62 @@ def reset_based_scoring_function(
         behavior_descriptor_extractor=behavior_descriptor_extractor,
     )
 
-    return (fitnesses, descriptors, extra_scores, random_key)
+    return (fitnesses, descriptors, preferences, extra_scores, random_key)
+
+
+@partial(
+    jax.jit,
+    static_argnames=(
+        "episode_length",
+        "play_reset_fn",
+        "play_step_fn",
+        "behavior_descriptor_extractor",
+    ),
+)
+def reset_based_preference_conditioned_scoring_function(
+    pc_actor_params: Genotype,
+    input_preferences: Preference,
+    random_key: RNGKey,
+    episode_length: int,
+    play_reset_fn: Callable[[RNGKey], brax.envs.State],
+    play_step_fn: Callable[
+        [brax.envs.State, Params, RNGKey, brax.envs.Env],
+        Tuple[brax.envs.State, Params, RNGKey, QDTransition],
+    ],
+    behavior_descriptor_extractor: Callable[[QDTransition, jnp.ndarray], Descriptor],
+) -> Tuple[Fitness, Descriptor, Preference, ExtraScores, RNGKey]:
+    """Evaluates policies contained in policies_params in parallel.
+    The play_reset_fn function allows for a more general scoring_function that can be
+    called with different batch-size and not only with a batch-size of the same
+    dimension as init_states.
+
+    To define purely stochastic environments, using the reset function from the
+    environment, use "play_reset_fn = env.reset".
+
+    To define purely deterministic environments, as in "scoring_function", generate
+    a single init_state using "init_state = env.reset(random_key)", then use
+    "play_reset_fn = lambda random_key: init_state".
+    """
+
+    random_key, subkey = jax.random.split(random_key)
+    keys = jax.random.split(
+        subkey, jax.tree_util.tree_leaves(pc_actor_params)[0].shape[0]
+    )
+    reset_fn = jax.vmap(play_reset_fn)
+    init_states = reset_fn(keys)
+
+    fitnesses, descriptors, preferences, extra_scores, random_key = preference_conditioned_scoring_function(
+        policies_params=pc_actor_params,
+        input_preferences=input_preferences,
+        random_key=random_key,
+        init_states=init_states,
+        episode_length=episode_length,
+        play_step_fn=play_step_fn,
+        behavior_descriptor_extractor=behavior_descriptor_extractor,
+    )
+
+    return (fitnesses, descriptors, preferences, extra_scores, random_key)
+
 
 
 @partial(

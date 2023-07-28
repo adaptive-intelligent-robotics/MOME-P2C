@@ -9,9 +9,13 @@ def play_mo_step_fn(
         random_key,
         policy_network,
         env,
+        min_rewards,
+        max_rewards,
     ):
         """
-        Play an environment step and return the updated state and the transition
+        Play an environment step and return the updated state and the transition.
+
+        Rewards at each timestep are normalised by the maximum and minimum rewards
         """
 
         actions = policy_network.apply(policy_params, env_state.obs)
@@ -19,10 +23,12 @@ def play_mo_step_fn(
         state_desc = env_state.info["state_descriptor"]
         next_state = env.step(env_state, actions)
 
+        rewards = (next_state.reward - min_rewards)/(max_rewards - min_rewards)
+        
         transition = QDTransition(
             obs=env_state.obs,
             next_obs=next_state.obs,
-            rewards=next_state.reward,
+            rewards=rewards,
             dones=next_state.done,
             actions=actions,
             truncations=next_state.info["truncation"],
@@ -34,6 +40,43 @@ def play_mo_step_fn(
 
         return next_state, policy_params, random_key, transition
 
+
+def play_pc_mo_step_fn(
+        env_state,
+        policy_params,
+        preference,
+        random_key,
+        policy_network,
+        env,
+        min_rewards,
+        max_rewards,
+    ):
+        """
+        Step function for preference-conditioned agent.
+        Play an environment step and return the updated state and the transition
+        """
+
+        actions = policy_network.apply(policy_params, jnp.concatenate([env_state.obs, preference], axis=-1))
+       
+        state_desc = env_state.info["state_descriptor"]
+        next_state = env.step(env_state, actions)
+
+        rewards = (next_state.reward - min_rewards)/(max_rewards - min_rewards)
+
+        transition = QDTransition(
+            obs=env_state.obs,
+            next_obs=next_state.obs,
+            rewards=rewards,
+            dones=next_state.done,
+            actions=actions,
+            truncations=next_state.info["truncation"],
+            state_desc=state_desc,
+            next_state_desc=next_state.info["state_descriptor"],
+            preference=jnp.zeros(next_state.reward.shape) * jnp.nan,
+            input_preference=jnp.zeros(next_state.reward.shape) * jnp.nan,
+        )
+
+        return next_state, policy_params, random_key, transition
 
 def play_step_fn(
         env_state,
