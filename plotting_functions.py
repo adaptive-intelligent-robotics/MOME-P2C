@@ -56,7 +56,8 @@ def plotting_function(
         repertoire_fitnesses=metrics["hypervolumes"][-1],
         minval=config.env.min_bd,
         maxval=config.env.max_bd,
-        ax=axes[2]
+        ax=axes[2],
+        vmax=config.env.max_hypervolume,
     )
     plt.savefig(f"{save_dir}/repertoire_{save_name}")
 

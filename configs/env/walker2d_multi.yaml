@@ -18,3 +18,5 @@ reference_point: [-210, -15]
 min_rewards: [-6, -0.0065]
 max_rewards: [8, 0]
 
+# Empirical Maximum Hypervolume for the environment: 40425.383
+max_hypervolume: 50000.0
