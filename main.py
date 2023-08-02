@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Tuple
 from omegaconf import OmegaConf
+from plotting_functions import plotting_function
 from qdax import environments
 from qdax.core.containers.mapelites_repertoire import compute_cvt_centroids
 from qdax.core.emitters.pga_me_emitter import PGAMEConfig, MOPGAEmitter, PCMOPGAEmitter, actor_uniform_sampled_preferences
@@ -27,10 +28,7 @@ from qdax.core.emitters.mutation_operators import (
 )
 
 from qdax.utils.metrics import default_moqd_metrics
-from qdax.utils.plotting import ( 
-    plot_2d_map_elites_repertoire, 
-    plot_mome_pareto_fronts, 
-)
+
 
 @dataclass
 class ExperimentConfig:
@@ -345,6 +343,17 @@ def main(config: ExperimentConfig) -> None:
     
     mome_scan_fn = mome.scan_update
 
+    plt = plotting_function(
+        config,
+        centroids,
+        metrics_history,
+        repertoire,
+        _repertoire_plots_save_dir,
+        "init",
+    )
+    
+    plt.close()
+    
     # Run the algorithm
     for iteration in range(num_loops):
         start_time = time.time()
@@ -386,46 +395,17 @@ def main(config: ExperimentConfig) -> None:
         # Save plot of repertoire every plot_repertoire_period
         if (iteration+1)*config.metrics_log_period % config.plot_repertoire_period == 0:
             if config.env.num_descriptor_dimensions == 2:
-                fig = plt.figure()
-                axes = fig.add_subplot(111) 
-
-                fig, axes = plot_2d_map_elites_repertoire(
-                    centroids=centroids,
-                    repertoire_fitnesses=metrics["num_solutions"][-1],
-                    minval=config.env.min_bd,
-                    maxval=config.env.max_bd,
-                    vmin=0,
-                    vmax=config.pareto_front_max_length,
-                    ax=axes
-                )
-                plt.savefig(f"{_repertoire_plots_save_dir}/num_solutions_{(iteration+1)*config.metrics_log_period}")
-                plt.close()
-
-                fig, axes = plt.subplots(figsize=(18, 6), ncols=3)
-
-                # plot pareto fronts
-                axes = plot_mome_pareto_fronts(
+                plt = plotting_function(
+                    config,
                     centroids,
+                    metrics,
                     repertoire,
-                    minval=config.env.min_bd,
-                    maxval=config.env.max_bd,
-                    color_style='spectral',
-                    axes=axes,
-                    with_global=True
+                    _repertoire_plots_save_dir,
+                    str((iteration+1)*config.metrics_log_period)
                 )
-
-                # add map elites plot on last axes
-                fig, axes = plot_2d_map_elites_repertoire(
-                    centroids=centroids,
-                    repertoire_fitnesses=metrics["hypervolumes"][-1],
-                    minval=config.env.min_bd,
-                    maxval=config.env.max_bd,
-                    ax=axes[2]
-                )
-
-                plt.savefig(f"{_repertoire_plots_save_dir}/repertoire_{(iteration+1)*config.metrics_log_period}")
+                
                 plt.close()
-        
+
         # Save latest repertoire and metrics every 'checkpoint_period'
         if (iteration+1)*config.metrics_log_period  % config.checkpoint_period == 0:
             repertoire.save(path=_repertoire_dir)
@@ -474,44 +454,16 @@ def main(config: ExperimentConfig) -> None:
 
     # Save final plots
     if config.env.num_descriptor_dimensions == 2:
-        fig = plt.figure()
-        axes = fig.add_subplot(111) 
 
-        fig, axes = plot_2d_map_elites_repertoire(
-                    centroids=centroids,
-                    repertoire_fitnesses=metrics["num_solutions"][-1],
-                    minval=config.env.min_bd,
-                    maxval=config.env.max_bd,
-                    vmin=0,
-                    vmax=config.pareto_front_max_length,
-                    ax=axes
-        )
-
-        plt.savefig(f"{_repertoire_plots_save_dir}/num_solutions_final")
-        plt.close()
-
-        fig, axes = plt.subplots(figsize=(18, 6), ncols=3)
-
-        # plot pareto fronts
-        axes = plot_mome_pareto_fronts(
+        plt = plotting_function(
+            config,
             centroids,
+            metrics,
             repertoire,
-            minval=config.env.min_bd,
-            maxval=config.env.max_bd,
-            color_style='spectral',
-            axes=axes,
-            with_global=True
+            _repertoire_plots_save_dir,
+            "final",
         )
-
-        # add map elites plot on last axes
-        fig, axes = plot_2d_map_elites_repertoire(
-            centroids=centroids,
-            repertoire_fitnesses=metrics["hypervolumes"][-1],
-            minval=config.env.min_bd,
-            maxval=config.env.max_bd,
-            ax=axes[2]
-        )
-
+                        
         wandb.log({"Final Repertoire": wandb.Image(plt)})
         plt.savefig(f"{_repertoire_plots_save_dir}/repertoire_final")
         plt.close()
