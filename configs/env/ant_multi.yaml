@@ -10,7 +10,10 @@ max_bd: 1.
 # Min and Max values of rewards for reference points
 # Empirical min: [-307.27118, -3997.8]
 # Empirical max: [3339.4678, -0.2654624]
-
-min_rewards: [-0.35, -4.5]
-max_rewards: [4, 0]
 reference_point: [-350, -4500]
+
+# Min and Max values for rewards for normalisation
+# Empirical min: [-6.480155, -4]
+# Empirical max: [7.292213, -0.0000109]
+min_rewards: [-7, -4.5]
+max_rewards: [8, 0]

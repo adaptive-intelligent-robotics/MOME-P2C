@@ -1,4 +1,4 @@
-name: halfcheetah_multi
+name: humanoid_multi
 
 num_descriptor_dimensions: 2
 num_objective_functions: 2
@@ -10,7 +10,10 @@ max_bd: 1.
 # Min and Max values of rewards for reference points
 # Empirical min: [-52.85332, -327.06708]
 # Empirical max:[365.48199, -0.023004716]
+reference_point: [-100, -500]
 
-min_rewards: [-0.1, -0.5]
-max_rewards: [0.5, 0]
-reference_point: [-100, 500]
+# Min and Max values of rewards for reference points
+# Empirical min: [-3.792442, -0.003]
+# Empirical max: [6.934434, 0]
+min_rewards: [-4.5, -0.0035]
+max_rewards: [8, 0]

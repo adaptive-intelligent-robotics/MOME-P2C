@@ -7,12 +7,14 @@ num_objective_functions: 2
 min_bd: 0. 
 max_bd: 1.
 
-# Min and Max values of rewards for reference points
+# Min and Max values of fitnesses for reference points
 # Empirical min: [-205.34937, -5.514009]
 # Emprical max: [2186.4878, -1.3155421e-05]
-
-#min_rewards: [-350, -8]
-min_rewards: [-0.21, -0.015]
-max_rewards: [2.5, 0]
 reference_point: [-210, -15]
+
+# Min and Max values for rewards for normalisation
+# Empirical min: [-5.0035563, -0.006]
+# Empirical max: [6.5805907, -0.000000000931]
+min_rewards: [-6, -0.0065]
+max_rewards: [8, 0]
 
