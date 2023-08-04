@@ -342,17 +342,17 @@ def main(config: ExperimentConfig) -> None:
     logger_header.append("time")
     
     mome_scan_fn = mome.scan_update
-
-    plt = plotting_function(
-        config,
-        centroids,
-        metrics_history,
-        repertoire,
-        _repertoire_plots_save_dir,
-        "init",
-    )
     
-    plt.close()
+    if config.env.num_descriptor_dimensions == 2:
+        plt = plotting_function(
+            config,
+            centroids,
+            metrics_history,
+            repertoire,
+            _repertoire_plots_save_dir,
+            "init",
+        )
+        plt.close()
     
     # Run the algorithm
     for iteration in range(num_loops):
