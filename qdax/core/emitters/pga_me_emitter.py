@@ -253,7 +253,6 @@ class PCMOPGAEmitter(MultiEmitter):
         )
         
         sampled_preferences, random_key = self._pc_actor_preferences_sample_fn(
-            repertoire,
             random_key,
         )
 
@@ -273,27 +272,3 @@ class PCMOPGAEmitter(MultiEmitter):
 
         return new_emitter_state, random_key
     
-    
-
-@partial(jax.jit, static_argnames=("batch_size", "num_objectives"))
-def actor_uniform_sampled_preferences(
-    repertoire: MOMERepertoire,
-    random_key: RNGKey,
-    batch_size: int,
-    num_objectives: int,
-) -> Tuple[Preference, RNGKey]:
-    """Sample random preferences to evalute and train actor with."""
-
-    random_key, subkey = jax.random.split(random_key)
-
-    first_cols_sampled_preferences = jax.random.uniform(
-        random_key, shape=(batch_size, num_objectives-1), minval=0.0, maxval=1.0
-    )
-
-    sum_first_cols_sampled_preferences = jnp.sum(first_cols_sampled_preferences, axis=1)
-    
-    # Need to make sure preferences sum to 1
-    last_col_sampled = jnp.ones(batch_size) - sum_first_cols_sampled_preferences
-    sampled_preferences = jnp.hstack((first_cols_sampled_preferences, jnp.expand_dims(last_col_sampled, axis=1)))
-
-    return sampled_preferences, random_key

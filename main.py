@@ -17,7 +17,7 @@ from omegaconf import OmegaConf
 from plotting_functions import plotting_function
 from qdax import environments
 from qdax.core.containers.mapelites_repertoire import compute_cvt_centroids
-from qdax.core.emitters.pga_me_emitter import PGAMEConfig, MOPGAEmitter, PCMOPGAEmitter, actor_uniform_sampled_preferences
+from qdax.core.emitters.pga_me_emitter import PGAMEConfig, MOPGAEmitter, PCMOPGAEmitter
 from qdax.core.mome import MOME
 from qdax.core.neuroevolution.mdp_utils import scoring_function, preference_conditioned_scoring_function
 from qdax.core.neuroevolution.networks.networks import MLP
@@ -28,6 +28,7 @@ from qdax.core.emitters.mutation_operators import (
 )
 
 from qdax.utils.metrics import default_moqd_metrics
+from qdax.utils.pareto_front import uniform_preference_sampling
 
 
 @dataclass
@@ -235,7 +236,7 @@ def main(config: ExperimentConfig) -> None:
         )  
         
         if config.algo.pc_actor_uniform_preference_sampling:
-            actor_sampling_fn = partial(actor_uniform_sampled_preferences,
+            actor_sampling_fn = partial(uniform_preference_sampling,
                 batch_size=config.algo.num_actor_active_samples,
                 num_objectives=config.env.num_objective_functions
             )

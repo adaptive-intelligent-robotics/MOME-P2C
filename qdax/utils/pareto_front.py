@@ -4,7 +4,14 @@ import chex
 import jax
 import jax.numpy as jnp
 
-from qdax.types import Mask, ParetoFront
+from functools import partial
+from typing import Tuple
+from qdax.types import (
+    Mask,
+    ParetoFront,
+    Preference,
+    RNGKey
+)
 
 
 def compute_pareto_dominance(
@@ -139,3 +146,26 @@ def compute_hypervolume(
     hypervolume = jnp.sum(sumdiff)
 
     return hypervolume
+
+
+@partial(jax.jit, static_argnames=("batch_size", "num_objectives"))
+def uniform_preference_sampling(
+    random_key: RNGKey,
+    batch_size: int,
+    num_objectives: int,
+) -> Tuple[Preference, RNGKey]:
+    """Sample random preferences to evalute and train actor with."""
+
+    random_key, subkey = jax.random.split(random_key)
+
+    first_cols_sampled_preferences = jax.random.uniform(
+        random_key, shape=(batch_size, num_objectives-1), minval=0.0, maxval=1.0
+    )
+
+    sum_first_cols_sampled_preferences = jnp.sum(first_cols_sampled_preferences, axis=1)
+    
+    # Need to make sure preferences sum to 1
+    last_col_sampled = jnp.ones(batch_size) - sum_first_cols_sampled_preferences
+    sampled_preferences = jnp.hstack((first_cols_sampled_preferences, jnp.expand_dims(last_col_sampled, axis=1)))
+
+    return sampled_preferences, random_key
