@@ -105,9 +105,9 @@ class OneHotPreferenceSampler(PreferenceSampler):
         )
         
         # Turn weights into one-hot vectors using argmax
-        idx = jnp.argmax(weights, axis=1)
+        idx = jnp.argmax(random_weights, axis=1)
         one_hot = jnp.zeros_like(random_weights)
-        weights = one_hot.at[jnp.arange(weights.shape[0]), idx].set(1.0)
+        weights = one_hot.at[jnp.arange(random_weights.shape[0]), idx].set(1.0)
 
         sampling_state = sampling_state.replace(
             random_key = random_key
@@ -147,5 +147,5 @@ class KeepPreferencesSampler(PreferenceSampler):
         sampling_state = sampling_state.replace(
             random_key = random_key
         )
-        
+
         return genotypes, preferences, sampling_state
