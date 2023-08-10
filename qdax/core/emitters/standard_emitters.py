@@ -72,7 +72,7 @@ class MixingEmitter(Emitter):
                 x_mutation,
             )
 
-        return genotypes, random_key
+        return genotypes, emitter_state, random_key
 
     @property
     def use_all_data(self) -> bool:

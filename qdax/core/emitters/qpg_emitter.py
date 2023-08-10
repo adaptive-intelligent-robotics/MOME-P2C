@@ -221,7 +221,7 @@ class QualityPGEmitter(Emitter):
             offspring_actor,
         )
 
-        return genotypes, random_key
+        return genotypes, emitter_state, random_key
 
     @partial(
         jax.jit,

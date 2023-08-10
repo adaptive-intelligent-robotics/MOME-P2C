@@ -7,6 +7,7 @@ import jax
 import jax.numpy as jnp
 
 from qdax.core.containers.mome_repertoire import MOMERepertoire
+from qdax.core.emitters.preference_sampling.preference_sampler import PreferenceSampler
 from qdax.core.emitters.multi_emitter import MultiEmitter, MultiEmitterState
 from qdax.core.emitters.pc_qpg_emitter import PCQualityPGConfig, PCQualityPGEmitter
 from qdax.core.emitters.qpg_emitter import QualityPGConfig, QualityPGEmitter, QualityPGEmitterState
@@ -169,6 +170,7 @@ class PCMOPGAEmitter(MultiEmitter):
         pc_actor_scoring_function: Callable[[Params, Preference, RNGKey], Tuple[Fitness, Descriptor, Preference, ExtraScores, RNGKey]],
         pc_actor_preferences_sample_fn: Callable[[MOMERepertoire, RNGKey], jnp.ndarray],
         num_actor_active_samples: int,
+        sampler: PreferenceSampler,
         env: QDEnv,
         variation_fn: Callable[[Params, Params, RNGKey], Tuple[Params, RNGKey]],
     ) -> None:
@@ -211,6 +213,7 @@ class PCMOPGAEmitter(MultiEmitter):
             config=qpg_config,
             policy_network=policy_network,
             pc_actor_network=pc_actor_network,
+            sampler=sampler,
             env=env
         )
 
@@ -271,4 +274,37 @@ class PCMOPGAEmitter(MultiEmitter):
         new_emitter_state = MultiEmitterState(tuple([new_pg_emitter_state, ga_emitter_state]))
 
         return new_emitter_state, random_key
-    
+
+    @partial(jax.jit, static_argnames=("self",))
+    def init_sampler_state_update(
+        self,
+        emitter_state: MultiEmitterState,
+        fitnesses: Fitness,
+        preferences: Preference,
+    )-> MultiEmitterState:
+        """Evaluates the preference conditioned actor on given preferences in the environment
+        and adds the transitions to the replay buffer.
+        """
+
+        pg_emitter_state = emitter_state.emitter_states[0]
+        ga_emitter_state = emitter_state.emitter_states[1]
+        pg_emitter = self.emitters[0]
+
+        pg_fitnesses = fitnesses.at[:self._config.mutation_qpg_batch_size].get()
+        pg_preferences = fitnesses.at[:self._config.mutation_qpg_batch_size].get()
+
+        new_sampling_state = pg_emitter._sampler.init_state_update(
+            sampling_state=pg_emitter_state.sampling_state,
+            batch_init_fitnesses=pg_fitnesses,
+            batch_init_preferences=pg_preferences,
+        )
+
+        new_pg_emitter_state = pg_emitter_state.replace(
+            sampling_state=new_sampling_state
+        )
+
+        new_emitter_state = emitter_state.replace(
+            emitter_states=tuple([new_pg_emitter_state, ga_emitter_state])
+        )
+
+        return new_emitter_state

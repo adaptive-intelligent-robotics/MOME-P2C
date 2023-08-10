@@ -59,7 +59,7 @@ class BiasedSamplingMOMERepertoire(MOMERepertoire):
         pareto_front_preferences: ParetoFront[Preference],
         mask: Mask,
         random_key: RNGKey,
-    ) -> Genotype:
+    ) -> Tuple[Genotype, Fitness, Preference, ParetoFront[Fitness]]:
         """Sample one single genotype and corresponding preference in masked pareto front.
         Selection of genotypes is biased according to the crowding distance, calculated
         in objective space. 
@@ -155,12 +155,17 @@ class BiasedSamplingMOMERepertoire(MOMERepertoire):
             pareto_front_genotypes,
         )
 
-        pareto_front_preferences = jax.tree_util.tree_map(
+        fitnesses_sample = jax.tree_util.tree_map(
+            lambda x: jax.random.choice(random_key, x, shape=(1,), p=selection_probs),
+            pareto_front_fitnesses,
+        )
+
+        preferences_sample = jax.tree_util.tree_map(
             lambda x: jax.random.choice(random_key, x, shape=(1,), p=selection_probs),
             pareto_front_preferences,
         )
-
-        return genotype_sample, pareto_front_preferences
+        
+        return genotype_sample, fitnesses_sample, preferences_sample, pareto_front_fitnesses
 
     @partial(jax.jit, static_argnames=("num_samples",))
     def sample(self, random_key: RNGKey, num_samples: int) -> Tuple[Genotype, RNGKey]:
@@ -210,7 +215,7 @@ class BiasedSamplingMOMERepertoire(MOMERepertoire):
         # sample genotypes from the pareto front
         random_key, subkey = jax.random.split(random_key)
         subkeys = jax.random.split(subkey, num=num_samples)
-        sampled_genotypes, _ = sample_in_fronts(  # type: ignore
+        sampled_genotypes, _, _, _ = sample_in_fronts(  # type: ignore
             pareto_front_genotypes=pareto_front_genotypes,
             pareto_front_fitnesses=pareto_front_fitnesses,
             pareto_front_preferences=pareto_front_preferences,
@@ -227,7 +232,11 @@ class BiasedSamplingMOMERepertoire(MOMERepertoire):
 
 
     @partial(jax.jit, static_argnames=("num_samples",))
-    def sample_parents_and_preferences(self, random_key: RNGKey, num_samples: int) -> Tuple[Genotype, RNGKey]:
+    def sample_batch(
+        self,
+        random_key: RNGKey,
+        num_samples: int
+    )-> Tuple[Genotype, Fitness, Preference, ParetoFront[Fitness]]:
         """Sample elements and associated preference in the repertoire.
 
         This method sample a non-empty pareto front, and then sample
@@ -273,7 +282,7 @@ class BiasedSamplingMOMERepertoire(MOMERepertoire):
         # sample genotypes from the pareto front
         random_key, subkey = jax.random.split(random_key)
         subkeys = jax.random.split(subkey, num=num_samples)
-        sampled_genotypes, sampled_preferences = sample_in_fronts(  # type: ignore
+        sampled_genotypes, sampled_fitnesses, sampled_preferences, sampled_fronts = sample_in_fronts(  # type: ignore
             pareto_front_genotypes=pareto_front_genotypes,
             pareto_front_fitnesses=pareto_front_fitnesses,
             pareto_front_preferences = pareto_front_preferences,
@@ -285,12 +294,15 @@ class BiasedSamplingMOMERepertoire(MOMERepertoire):
         sampled_genotypes = jax.tree_util.tree_map(
             lambda x: x.squeeze(axis=1), sampled_genotypes
         )
+        sampled_fitnesses = jax.tree_util.tree_map(
+            lambda x: x.squeeze(axis=1), sampled_fitnesses
+        )
 
         sampled_preferences = jax.tree_util.tree_map(
             lambda x: x.squeeze(axis=1), sampled_preferences
         )
     
-        return sampled_genotypes, sampled_preferences, random_key
+        return sampled_genotypes, sampled_fitnesses, sampled_preferences, sampled_fronts
 
     @jax.jit
     def _update_masked_pareto_front(

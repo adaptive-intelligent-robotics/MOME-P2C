@@ -1,4 +1,4 @@
-name: pc-mome-pgx
+name: one-hot-pc-mome-pgx
 
 # Sampling
 bias_sampling: True
@@ -14,4 +14,4 @@ num_actor_active_samples: 128
 pc_actor_uniform_preference_sampling: True
 
 # Which sampling method to use for the preference conditioned policy gradient
-sampler: "keep_preferences"
+sampler: "one-hot"

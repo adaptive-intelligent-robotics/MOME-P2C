@@ -7,7 +7,11 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any, Optional, Tuple
 
-from qdax.core.emitters.qpg_emitter import QualityPGEmitterState
+from qdax.core.emitters.emitter import EmitterState
+from qdax.core.emitters.preference_sampling.preference_sampler import (
+    PreferenceSampler,
+    PreferenceSamplingState,
+)
 from qdax.core.containers.repertoire import Repertoire
 from qdax.core.emitters.emitter import Emitter
 from qdax.core.neuroevolution.buffers.buffer import QDTransition, ReplayBuffer
@@ -41,6 +45,21 @@ class PCQualityPGConfig:
     policy_delay: int = 2
 
 
+class PCQualityPGEmitterState(EmitterState):
+    """Contains training state for the learner."""
+
+    critic_params: Params
+    critic_optimizer_state: optax.OptState
+    actor_params: Params
+    actor_opt_state: optax.OptState
+    target_critic_params: Params
+    target_actor_params: Params
+    replay_buffer: ReplayBuffer
+    random_key: RNGKey
+    steps: jnp.ndarray
+
+    sampling_state: PreferenceSamplingState
+
 
 class PCQualityPGEmitter(Emitter):
     """
@@ -52,6 +71,7 @@ class PCQualityPGEmitter(Emitter):
         config: PCQualityPGConfig,
         policy_network: nn.Module,
         pc_actor_network: nn.Module,
+        sampler: PreferenceSampler,
         env: QDEnv,
     ) -> None:
         self._config = config
@@ -89,6 +109,9 @@ class PCQualityPGEmitter(Emitter):
             learning_rate=self._config.policy_learning_rate
         )
 
+        # Set up the preference sampling function
+        self._sampler = sampler
+
     @property
     def batch_size(self) -> int:
         """
@@ -107,7 +130,7 @@ class PCQualityPGEmitter(Emitter):
 
     def init(
         self, init_genotypes: Genotype, random_key: RNGKey
-    ) -> Tuple[QualityPGEmitterState, RNGKey]:
+    ) -> Tuple[PCQualityPGEmitterState, RNGKey]:
         """Initializes the emitter state.
         Args:
             init_genotypes: The initial population.
@@ -158,9 +181,15 @@ class PCQualityPGEmitter(Emitter):
             buffer_size=self._config.replay_buffer_size, transition=dummy_transition
         )
 
+        random_key, subkey = jax.random.split(random_key)
+        sampling_state, random_key = self._sampler.init(
+            init_genotypes=init_genotypes,
+            random_key=subkey,
+        )
+
         # Initial training state
         random_key, subkey = jax.random.split(random_key)
-        emitter_state = QualityPGEmitterState(
+        emitter_state = PCQualityPGEmitterState(
             critic_params=pc_critic_params,
             critic_optimizer_state=critic_optimizer_state,
             actor_params=pc_actor_params,
@@ -170,6 +199,7 @@ class PCQualityPGEmitter(Emitter):
             random_key=subkey,
             steps=jnp.array(0),
             replay_buffer=replay_buffer,
+            sampling_state=sampling_state,
         )
 
         return emitter_state, random_key
@@ -181,9 +211,9 @@ class PCQualityPGEmitter(Emitter):
     def emit(
         self,
         repertoire: Repertoire,
-        emitter_state: QualityPGEmitterState,
+        emitter_state: PCQualityPGEmitterState,
         random_key: RNGKey,
-    ) -> Tuple[Genotype, RNGKey]:
+    ) -> Tuple[Genotype, PCQualityPGEmitterState, RNGKey]:
         """Do a step of PG emission.
         Args:
             repertoire: the current repertoire of genotypes
@@ -194,12 +224,17 @@ class PCQualityPGEmitter(Emitter):
         """
 
         # sample parents
-        parents, preferences, random_key = repertoire.sample_parents_and_preferences(random_key, self._config.env_batch_size)
+        parents, preferences, sampling_state = self._sampler.sample(
+            repertoire=repertoire,
+            sampling_state=emitter_state.sampling_state,
+        )
 
+        emitter_state = emitter_state.replace(sampling_state=sampling_state)
+            
         # apply the pg mutation
         genotypes = self.emit_pg(emitter_state, parents, preferences)
 
-        return genotypes, random_key
+        return genotypes, emitter_state, random_key
 
     @partial(
         jax.jit,
@@ -207,7 +242,7 @@ class PCQualityPGEmitter(Emitter):
     )
     def emit_pg(
         self, 
-        emitter_state: QualityPGEmitterState, 
+        emitter_state: PCQualityPGEmitterState, 
         parents: Genotype,
         preferences: jnp.ndarray,
     ) -> Genotype:
@@ -231,13 +266,13 @@ class PCQualityPGEmitter(Emitter):
     @partial(jax.jit, static_argnames=("self",))
     def state_update(
         self,
-        emitter_state: QualityPGEmitterState,
+        emitter_state: PCQualityPGEmitterState,
         repertoire: Optional[Repertoire],
         genotypes: Optional[Genotype],
         fitnesses: Optional[Fitness],
         descriptors: Optional[Descriptor],
         extra_scores: ExtraScores,
-    ) -> QualityPGEmitterState:
+    ) -> PCQualityPGEmitterState:
         """This function gives an opportunity to update the emitter state
         after the genotypes have been scored.
         Here it is used to fill the Replay Buffer with the transitions
@@ -264,9 +299,17 @@ class PCQualityPGEmitter(Emitter):
         replay_buffer = emitter_state.replay_buffer.insert(transitions)
         emitter_state = emitter_state.replace(replay_buffer=replay_buffer)
 
+        # update the sampling state
+        pg_fitnesses = fitnesses.at[:self.batch_size].get()
+        sampling_state = self._sampler.state_update(
+            sampling_state=emitter_state.sampling_state,
+            batch_new_fitnesses=pg_fitnesses,
+        )
+        emitter_state = emitter_state.replace(sampling_state=sampling_state)
+
         def scan_train_critics(
-            carry: QualityPGEmitterState, unused: Any
-        ) -> Tuple[QualityPGEmitterState, Any]:
+            carry: PCQualityPGEmitterState, unused: Any
+        ) -> Tuple[PCQualityPGEmitterState, Any]:
             emitter_state = carry
             new_emitter_state = self._train_critics(emitter_state)
             return new_emitter_state, ()
@@ -283,8 +326,8 @@ class PCQualityPGEmitter(Emitter):
 
     @partial(jax.jit, static_argnames=("self",))
     def _train_critics(
-        self, emitter_state: QualityPGEmitterState
-    ) -> QualityPGEmitterState:
+        self, emitter_state: PCQualityPGEmitterState
+    ) -> PCQualityPGEmitterState:
         """Apply one gradient step to critics and to the greedy actor
         (contained in carry in training_state), then soft update target critics
         and target actor.
@@ -429,7 +472,7 @@ class PCQualityPGEmitter(Emitter):
         self,
         policy_params: Genotype,
         policy_preferences: jnp.ndarray,
-        emitter_state: QualityPGEmitterState,
+        emitter_state: PCQualityPGEmitterState,
     ) -> Genotype:
         """Apply pg mutation to a policy via multiple steps of gradient descent.
         First, update the rewards to be diversity rewards, then apply the gradient
@@ -447,9 +490,9 @@ class PCQualityPGEmitter(Emitter):
         policy_optimizer_state = self._policies_optimizer.init(policy_params)
 
         def scan_train_policy(
-            carry: Tuple[QualityPGEmitterState, Genotype, optax.OptState],
+            carry: Tuple[PCQualityPGEmitterState, Genotype, optax.OptState],
             unused: Any,
-        ) -> Tuple[Tuple[QualityPGEmitterState, Genotype, optax.OptState], Any]:
+        ) -> Tuple[Tuple[PCQualityPGEmitterState, Genotype, optax.OptState], Any]:
             emitter_state, policy_params, policy_preferences, policy_optimizer_state = carry
             (
                 new_emitter_state,
@@ -480,11 +523,11 @@ class PCQualityPGEmitter(Emitter):
     @partial(jax.jit, static_argnames=("self",))
     def _train_policy(
         self,
-        emitter_state: QualityPGEmitterState,
+        emitter_state: PCQualityPGEmitterState,
         policy_params: Params,
         policy_preferences: jnp.ndarray,
         policy_optimizer_state: optax.OptState,
-    ) -> Tuple[QualityPGEmitterState, Params, optax.OptState]:
+    ) -> Tuple[PCQualityPGEmitterState, Params, optax.OptState]:
         """Apply one gradient step to a policy (called policy_params).
         Args:
             emitter_state: current state of the emitter.

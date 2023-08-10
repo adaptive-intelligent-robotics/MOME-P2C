@@ -21,6 +21,12 @@ from qdax.core.emitters.pga_me_emitter import PGAMEConfig, MOPGAEmitter, PCMOPGA
 from qdax.core.mome import MOME
 from qdax.core.neuroevolution.mdp_utils import scoring_function, preference_conditioned_scoring_function
 from qdax.core.neuroevolution.networks.networks import MLP
+from qdax.core.emitters.preference_sampling.naive_samplers import (
+    KeepPreferencesSampler,
+    NaiveSamplingConfig,
+    OneHotPreferenceSampler,
+    RandomPreferenceSampler,
+)
 from qdax.core.emitters.standard_emitters import MixingEmitter
 from qdax.core.emitters.mutation_operators import (
     isoline_variation,
@@ -30,6 +36,12 @@ from qdax.core.emitters.mutation_operators import (
 from qdax.utils.metrics import default_moqd_metrics
 from qdax.utils.pareto_front import uniform_preference_sampling
 
+
+preference_conditioned_algos = [
+    "pc-mome-pgx",
+    "one-hot-pc-mome-pgx",
+    "random-pc-mome-pgx"
+]
 
 @dataclass
 class ExperimentConfig:
@@ -129,7 +141,7 @@ def main(config: ExperimentConfig) -> None:
     reset_fn = jax.jit(jax.vmap(env.reset))
     init_states = reset_fn(keys)
 
-    if config.algo_name == "pc-mome-pgx":
+    if config.algo_name in preference_conditioned_algos:
         actor_keys = jnp.repeat(jnp.expand_dims(subkey, axis=0), repeats=config.algo.num_actor_active_samples, axis=0)
         actor_init_states = reset_fn(actor_keys)
 
@@ -170,7 +182,7 @@ def main(config: ExperimentConfig) -> None:
     )
 
 
-    if config.algo_name == "mome-pgx" or config.algo_name == "pc-mome-pgx":
+    if config.algo_name == "mome-pgx" or config.algo_name in preference_conditioned_algos:
         # Define the PG-emitter config
         pg_emitter_config = PGAMEConfig(
             num_objective_functions=config.env.num_objective_functions,
@@ -219,7 +231,7 @@ def main(config: ExperimentConfig) -> None:
             variation_fn=ga_variation_function,
         )
 
-    if config.algo_name == "pc-mome-pgx":
+    if config.algo_name in preference_conditioned_algos:
         pc_actor_layer_sizes = config.algo.pc_actor_hidden_layer_sizes + (env.action_size,)
         pc_actor_network = MLP(
             layer_sizes=pc_actor_layer_sizes,
@@ -251,6 +263,25 @@ def main(config: ExperimentConfig) -> None:
                 max_rewards=jnp.array(config.env.max_rewards),
             )
 
+        sampling_config = NaiveSamplingConfig(
+            num_objectives=config.env.num_objective_functions,
+            emitter_batch_size=config.algo.mutation_qpg_batch_size,
+        )
+
+        if config.algo.sampler == "random":
+            sampler = RandomPreferenceSampler(
+                config=sampling_config,
+            )
+        elif config.algo.sampler == "keep":
+            sampler = KeepPreferencesSampler(
+                config=sampling_config,
+            )
+        elif config.algo.sampler == "one-hot":
+            sampler = OneHotPreferenceSampler(
+                config=sampling_config,
+            )
+
+
         emitter = PCMOPGAEmitter(
             config=pg_emitter_config,
             policy_network=policy_network,
@@ -258,6 +289,7 @@ def main(config: ExperimentConfig) -> None:
             pc_actor_scoring_function=preference_conditioned_scoring_fn,
             pc_actor_preferences_sample_fn=actor_sampling_fn,
             num_actor_active_samples=config.algo.num_actor_active_samples,
+            sampler=sampler,
             env=env,
             variation_fn=ga_variation_function,
         )

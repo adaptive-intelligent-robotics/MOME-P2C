@@ -112,6 +112,11 @@ class MOME:
                 random_key=random_key,
             )
 
+            emitter_state = self._emitter.init_sampler_state_update(
+                emitter_state=emitter_state,
+                fitnesses=fitnesses,
+                preferences=preferences,
+            )
 
         # update emitter state
         emitter_state = self._emitter.state_update(
@@ -132,7 +137,6 @@ class MOME:
         metrics["max_rewards"] = extra_scores["max_rewards"]
 
         return repertoire, metrics, emitter_state, random_key
-
 
 
     @partial(jax.jit, static_argnames=("self",))
@@ -162,7 +166,7 @@ class MOME:
             a new jax PRNG key
         """
         # generate offsprings with the emitter
-        genotypes, random_key = self._emitter.emit(
+        genotypes, emitter_state, random_key = self._emitter.emit(
             repertoire, emitter_state, random_key
         )
         # scores the offsprings
