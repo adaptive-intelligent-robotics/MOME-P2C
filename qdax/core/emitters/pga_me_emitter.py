@@ -13,7 +13,8 @@ from qdax.core.emitters.pc_qpg_emitter import PCQualityPGConfig, PCQualityPGEmit
 from qdax.core.emitters.qpg_emitter import QualityPGConfig, QualityPGEmitter, QualityPGEmitterState
 from qdax.core.emitters.standard_emitters import MixingEmitter
 from qdax.environments.base_wrappers import QDEnv
-from qdax.types import Descriptor, ExtraScores, Fitness, Params, Preference, RNGKey
+from qdax.types import Descriptor, ExtraScores, Genotype, Fitness, Params, Preference, RNGKey
+from qdax.utils.pareto_front import uniform_preference_sampling
 
 
 @dataclass
@@ -275,28 +276,61 @@ class PCMOPGAEmitter(MultiEmitter):
 
         return new_emitter_state, random_key
 
-    @partial(jax.jit, static_argnames=("self",))
-    def init_sampler_state_update(
+    def init_random_pg(
         self,
         emitter_state: MultiEmitterState,
-        fitnesses: Fitness,
-        preferences: Preference,
+        genotypes: Genotype,
+        random_key: RNGKey,
     )-> MultiEmitterState:
         """Evaluates the preference conditioned actor on given preferences in the environment
         and adds the transitions to the replay buffer.
         """
 
+        # get emitter state
+        pg_emitter_state = emitter_state.emitter_states[0]
+        pg_emitter = self.emitters[0]
+        
+        # generate random weights
+        random_key, subkey = jax.random.split(random_key)
+        random_weights, _ = uniform_preference_sampling(
+            random_key = subkey,
+            batch_size = self._config.mutation_qpg_batch_size + self._config.mutation_ga_batch_size,
+            num_objectives = self._config.num_objective_functions,
+        )
+                
+        # get new genotypes from pg variation on random weights
+        new_genotypes = pg_emitter.emit_pg(
+            emitter_state = pg_emitter_state,
+            parents = genotypes,
+            preferences = random_weights,
+        )
+
+        return new_genotypes, random_weights, random_key
+    
+    
+    def init_sampler_state_update(
+        self,
+        emitter_state: MultiEmitterState,
+        old_fitnesses: Fitness,
+        weights: Preference,
+    )-> MultiEmitterState:
+        """Evaluates the preference conditioned actor on given preferences in the environment
+        and adds the transitions to the replay buffer.
+        """
+
+        # get emitter state
         pg_emitter_state = emitter_state.emitter_states[0]
         ga_emitter_state = emitter_state.emitter_states[1]
         pg_emitter = self.emitters[0]
+        
 
-        pg_fitnesses = fitnesses.at[:self._config.mutation_qpg_batch_size].get()
-        pg_preferences = fitnesses.at[:self._config.mutation_qpg_batch_size].get()
+        # pg_fitnesses = fitnesses.at[:self._config.mutation_qpg_batch_size].get()
+        # pg_preferences = fitnesses.at[:self._config.mutation_qpg_batch_size].get()
 
         new_sampling_state = pg_emitter._sampler.init_state_update(
             sampling_state=pg_emitter_state.sampling_state,
-            batch_init_fitnesses=pg_fitnesses,
-            batch_init_preferences=pg_preferences,
+            batch_init_fitnesses=old_fitnesses,
+            batch_init_preferences=weights,
         )
 
         new_pg_emitter_state = pg_emitter_state.replace(

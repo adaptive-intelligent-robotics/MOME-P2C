@@ -103,20 +103,42 @@ class MOME:
         emitter_state, random_key = self._emitter.init(
             init_genotypes=init_genotypes, random_key=random_key
         )
-
+        
         # Evaluate preference conditioned actor and add samples to replay buffer
         if self._preference_conditioned:
+            
+            # pg_batch_size = self._emitter.emitters[0].batch_size
+            # ga_batch_size = self._emitter.emitters[0].
+            
+            # pg_genotypes = jax.tree_util.tree_map(
+            #     lambda x : x[:pg_batch_size],
+            #     init_genotypes
+            # )
+            
             emitter_state, random_key = self._emitter.evaluate_preference_conditioned_actor(
                 repertoire=repertoire,
                 emitter_state=emitter_state,
                 random_key=random_key,
             )
-
+            
+            # Do some policy gradient on random weights to initialise buffers
+            new_genotypes, random_weights, random_key = self._emitter.init_random_pg(
+                emitter_state = emitter_state,
+                genotypes = init_genotypes,
+                random_key = random_key,
+            )
             emitter_state = self._emitter.init_sampler_state_update(
                 emitter_state=emitter_state,
-                fitnesses=fitnesses,
-                preferences=preferences,
+                old_fitnesses=fitnesses,
+                weights=random_weights,
             )
+            
+            # score new fitnesses to record delta fitness from weights 
+            fitnesses, _, _, _, random_key = self._scoring_function(
+                new_genotypes, random_key
+            )
+            
+            
 
         # update emitter state
         emitter_state = self._emitter.state_update(
@@ -169,6 +191,7 @@ class MOME:
         genotypes, emitter_state, random_key = self._emitter.emit(
             repertoire, emitter_state, random_key
         )
+        
         # scores the offsprings
         fitnesses, descriptors, preferences, extra_scores, random_key = self._scoring_function(
             genotypes, random_key
@@ -186,7 +209,10 @@ class MOME:
             descriptors=descriptors,
             extra_scores=extra_scores,
         )
-
+        # # jax.debug.print("OLD:{}", emitter_state.emitter_states[0].sampling_state.old_fitnesses.data)
+        # jax.debug.print("NEW:{}", emitter_state.emitter_states[0].sampling_state.new_fitnesses.data)
+        # jax.debug.print("WEIGHTS:{}", emitter_state.emitter_states[0].sampling_state.weights_history.data)
+        
         # Evaluate preference conditioned actor and add samples to replay buffer
         if self._preference_conditioned:
             emitter_state, random_key = self._emitter.evaluate_preference_conditioned_actor(

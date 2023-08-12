@@ -27,6 +27,7 @@ from qdax.core.emitters.preference_sampling.naive_samplers import (
     OneHotPreferenceSampler,
     RandomPreferenceSampler,
 )
+from qdax.core.emitters.preference_sampling.hyperbolic_model import HyperbolicModelConfig, HyperbolicPredictionGuidedSampler
 from qdax.core.emitters.standard_emitters import MixingEmitter
 from qdax.core.emitters.mutation_operators import (
     isoline_variation,
@@ -40,6 +41,7 @@ from qdax.utils.pareto_front import uniform_preference_sampling
 preference_conditioned_algos = [
     "pc-mome-pgx",
     "one-hot-pc-mome-pgx",
+    "pg-pc-mome-pgx",
     "random-pc-mome-pgx"
 ]
 
@@ -281,6 +283,23 @@ def main(config: ExperimentConfig) -> None:
                 config=sampling_config,
             )
 
+        elif config.algo.sampler == "prediction_guided":
+            
+            assert(config.algo.num_neighbours < config.algo.mutation_qpg_batch_size)
+            
+            sampling_config = HyperbolicModelConfig(
+                num_objectives=config.env.num_objective_functions,
+                reference_point=jnp.array(config.env.reference_point),
+                emitter_batch_size=config.algo.mutation_qpg_batch_size,
+                buffer_size=config.algo.hyperbolic_buffer_size,
+                num_weight_candidates=config.algo.num_weight_candidates,
+                num_neighbours=config.algo.num_neighbours,
+                scaling_sigma=config.algo.scaling_sigma,
+            )
+
+            sampler = HyperbolicPredictionGuidedSampler(
+                config=sampling_config,
+            )
 
         emitter = PCMOPGAEmitter(
             config=pg_emitter_config,

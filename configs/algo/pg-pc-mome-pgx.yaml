@@ -1,0 +1,23 @@
+name: pg-pc-mome-pgx
+
+# Sampling
+bias_sampling: True
+preference_conditioned: True
+
+# Emitter params
+mutation_ga_batch_size: 128
+mutation_qpg_batch_size: 128
+
+# Preferenced-conditioned actor hidden layer sizes
+pc_actor_hidden_layer_sizes: [256, 256] 
+num_actor_active_samples: 128
+pc_actor_uniform_preference_sampling: True
+
+# Which sampling method to use for the preference conditioned policy gradient
+sampler: "prediction_guided"
+
+# Hyperbolic Model params
+hyperbolic_buffer_size: 128000
+num_weight_candidates: 8
+num_neighbours: 16
+scaling_sigma: 0.1

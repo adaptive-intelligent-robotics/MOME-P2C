@@ -1,15 +1,8 @@
 from __future__ import annotations
 
-from functools import partial
-from typing import Tuple
-
 import flax
 import jax
 import jax.numpy as jnp
-
-from qdax.types import Action, Done, Observation, Reward, RNGKey, StateDescriptor
-
-
 
 
 class ScoresBuffer(flax.struct.PyTreeNode):
@@ -23,7 +16,7 @@ class ScoresBuffer(flax.struct.PyTreeNode):
     def init(
         cls,
         buffer_size: int,
-        num_emitters: int,
+        num_objectives: int,
     ) -> ScoresBuffer:
         """
         The constructor of the buffer.
@@ -38,7 +31,7 @@ class ScoresBuffer(flax.struct.PyTreeNode):
                 the dimensions right
         """
 
-        data = jnp.ones((buffer_size, num_emitters)) * jnp.nan
+        data = jnp.ones((buffer_size, num_objectives)) * -jnp.inf
         current_size = jnp.array(0, dtype=int)
         current_position = jnp.array(0, dtype=int)
         return cls(
@@ -53,6 +46,7 @@ class ScoresBuffer(flax.struct.PyTreeNode):
         """
         Insert a new score per emitter
         """
+
         max_replay_size = self.buffer_size
 
         new_current_position = self.current_position + 1
@@ -60,14 +54,14 @@ class ScoresBuffer(flax.struct.PyTreeNode):
         new_current_size = jnp.minimum(
             self.current_size + 1, max_replay_size
         )
-
+        
         new_data = jax.lax.dynamic_update_slice_in_dim(
             self.data,
-            jnp.array(jnp.expand_dims(scores, axis=0), dtype=float),
+            scores,
             start_index=self.current_position % max_replay_size,
             axis=0,
         )
-
+        
         scores_buffer = self.replace(
             current_position=new_current_position,
             current_size=new_current_size,
@@ -75,7 +69,7 @@ class ScoresBuffer(flax.struct.PyTreeNode):
         )
 
         return scores_buffer  # type: ignore
-    
+
 
     def find_average_score(self,
         )-> jnp.array:
@@ -90,3 +84,24 @@ class ScoresBuffer(flax.struct.PyTreeNode):
         total = jnp.nansum(self.data, axis=0)
 
         return total
+    
+    def calculate_magnitude_difference(
+        self,
+        score: jnp.array,
+        )-> jnp.array:
+
+        difference = jnp.subtract(score, self.data)
+        abs_difference = jnp.abs(difference)
+        magnitude_difference = jnp.linalg.norm(abs_difference, axis=-1)
+    
+        return magnitude_difference
+    
+    
+    def get_indexed_data(
+        self,
+        idx: jnp.array,
+    )-> jnp.array:
+        
+        return self.data.at[idx].get()
+    
+    
