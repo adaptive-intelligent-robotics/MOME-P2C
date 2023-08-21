@@ -427,15 +427,9 @@ def main(config: ExperimentConfig) -> None:
         metrics_history = {key: jnp.concatenate((metrics_history[key], metrics[key]), axis=0) for key in metrics}
         logged_metrics = {"iteration": (iteration+ 1)*config.metrics_log_period,  "time": timelapse}
 
-        wandb_metrics_keys = [
-            "moqd_score",
-            "max_hypervolume",
-            "max_sum_scores",
-            "coverage",
-            "global_hypervolume",
-            "total_num_solutions"]
 
-        for key in wandb_metrics_keys:
+
+        for key in config.algo.wandb_metrics_keys:
             # take last value
             logged_metrics[key] = metrics[key][-1]
 

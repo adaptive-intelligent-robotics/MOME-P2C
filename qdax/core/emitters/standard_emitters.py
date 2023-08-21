@@ -97,18 +97,10 @@ class MixingEmitter(Emitter):
         metrics: Metrics,
     ):
 
-        n_variation = int(self._batch_size * self._variation_percentage)
-        n_mutation = self._batch_size - n_variation
-
         added_list = container_addition_metrics[0]
         removed_list = container_addition_metrics[1]
 
         metrics["removed_count"] = jnp.sum(removed_list)
-
-        variation_added_list = added_list[:n_variation]
-        mutation_added_list = added_list[n_variation+1:]
-
-        metrics[f'emitter_variation_count:'] = jnp.sum(variation_added_list)
-        metrics[f'emitter_mutation_count:'] = jnp.sum(mutation_added_list)
+        metrics[f'emitter_count'] = jnp.sum(added_list)
 
         return metrics

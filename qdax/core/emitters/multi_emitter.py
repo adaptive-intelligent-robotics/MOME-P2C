@@ -221,6 +221,6 @@ class MultiEmitter(Emitter):
                 :self.indexes_end_batches[emitter_num]
             ]
 
-            metrics[f'emitter_{emitter_num+1}_count:'] = jnp.sum(emitter_added_list)
+            metrics[f'emitter_{emitter_num+1}_count'] = jnp.sum(emitter_added_list)
         
         return metrics

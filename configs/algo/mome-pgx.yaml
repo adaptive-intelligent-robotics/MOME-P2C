@@ -7,3 +7,16 @@ preference_conditioned: False
 # Emitter params
 mutation_ga_batch_size: 128
 mutation_qpg_batch_size: 64
+
+# WandB Log Metrics
+wandb_metrics_keys: [
+    "moqd_score",
+    "max_hypervolume",
+    "max_sum_scores",
+    "coverage",
+    "global_hypervolume",
+    "total_num_solutions",
+    "emitter_1_count",
+    "emitter_2_count",
+    "emitter_3_count",
+]

@@ -1,5 +1,4 @@
-from dataclasses import dataclass
-from typing import Callable, Tuple
+from typing import Callable, Tuple, List
 
 import flax.linen as nn
 from functools import partial
@@ -45,6 +44,7 @@ class PCMOPGAEmitter(MultiEmitter):
 
         ga_batch_size = config.mutation_ga_batch_size
         qpg_batch_size = config.mutation_qpg_batch_size
+        self._qpg_batch_size = qpg_batch_size
 
         emitters = []
 
@@ -205,3 +205,25 @@ class PCMOPGAEmitter(MultiEmitter):
         )
 
         return new_emitter_state
+
+    @partial(jax.jit, static_argnames=("self",))   
+    def update_added_counts(
+        self,
+        container_addition_metrics: List,
+        metrics: Metrics,
+    ):
+
+        n_pg = self._qpg_batch_size
+
+        added_list = container_addition_metrics[0]
+        removed_list = container_addition_metrics[1]
+
+        metrics["removed_count"] = jnp.sum(removed_list)
+
+        variation_added_list = added_list[:n_pg]
+        mutation_added_list = added_list[n_pg+1:]
+
+        metrics[f'emitter_ga_count'] = jnp.sum(variation_added_list)
+        metrics[f'emitter_pg_count'] = jnp.sum(mutation_added_list)
+
+        return metrics

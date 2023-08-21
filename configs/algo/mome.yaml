@@ -13,3 +13,15 @@ mutation_qpg_batch_size: 0
 proportion_to_mutate: 0.6 # don't actually use this as purely crossover
 eta: 1 
 crossover_percentage: 1. 
+
+
+# WandB Log Metrics
+wandb_metrics_keys: [
+    "moqd_score",
+    "max_hypervolume",
+    "max_sum_scores",
+    "coverage",
+    "global_hypervolume",
+    "total_num_solutions",
+    "emitter_count",
+]

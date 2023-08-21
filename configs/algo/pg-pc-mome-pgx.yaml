@@ -21,3 +21,18 @@ hyperbolic_buffer_size: 128000
 num_weight_candidates: 8
 num_neighbours: 16
 scaling_sigma: 0.1
+
+
+# WandB Log Metrics
+wandb_metrics_keys: [
+    "moqd_score",
+    "max_hypervolume",
+    "max_sum_scores",
+    "coverage",
+    "global_hypervolume",
+    "total_num_solutions",
+    "emitter_ga_count",
+    "emitter_pg_count",
+    "pc_actor_f1_errors_correlation",
+    "pc_actor_total_error",
+]
