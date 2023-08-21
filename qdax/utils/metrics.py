@@ -168,12 +168,19 @@ def pc_actor_metrics(
     
     errors = jnp.abs(achieved_preferences - sampled_preferences)
         
+    # Calculate total error
     pc_actor_total_error = jnp.mean((
         jnp.sum(errors, axis=1)
     ))
+    
+    # Calculate whether there is correlation between error and preference sampled
+    f1_errors = errors[:,0]
+    f1_preferences = sampled_preferences[:,0]
+    f1_errors_correlation = jnp.corrcoef(f1_errors, f1_preferences)[0,1]
 
     pc_actor_metrics = {
         "pc_actor_total_error": pc_actor_total_error,
+        "pc_actor_f1_errors_correlation": f1_errors_correlation,
     }
     
     
