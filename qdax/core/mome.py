@@ -104,6 +104,8 @@ class MOME:
             init_genotypes=init_genotypes, random_key=random_key
         )
         
+        pc_actor_metrics = {}
+        
         # Evaluate preference conditioned actor and add samples to replay buffer
         if self._preference_conditioned:
             
@@ -115,7 +117,7 @@ class MOME:
             #     init_genotypes
             # )
             
-            emitter_state, random_key = self._emitter.evaluate_preference_conditioned_actor(
+            emitter_state, pc_actor_metrics, random_key = self._emitter.evaluate_preference_conditioned_actor(
                 repertoire=repertoire,
                 emitter_state=emitter_state,
                 random_key=random_key,
@@ -157,6 +159,8 @@ class MOME:
         # store empirically observed min and max rewards
         metrics["min_rewards"] = extra_scores["min_rewards"]
         metrics["max_rewards"] = extra_scores["max_rewards"]
+        
+        metrics = {**metrics, **pc_actor_metrics}
 
         return repertoire, metrics, emitter_state, random_key
 
@@ -212,10 +216,11 @@ class MOME:
         # # jax.debug.print("OLD:{}", emitter_state.emitter_states[0].sampling_state.old_fitnesses.data)
         # jax.debug.print("NEW:{}", emitter_state.emitter_states[0].sampling_state.new_fitnesses.data)
         # jax.debug.print("WEIGHTS:{}", emitter_state.emitter_states[0].sampling_state.weights_history.data)
-        
+        pc_actor_metrics = {}
+            
         # Evaluate preference conditioned actor and add samples to replay buffer
         if self._preference_conditioned:
-            emitter_state, random_key = self._emitter.evaluate_preference_conditioned_actor(
+            emitter_state, pc_actor_metrics, random_key = self._emitter.evaluate_preference_conditioned_actor(
                 repertoire=repertoire,
                 emitter_state=emitter_state,
                 random_key=random_key,
@@ -228,6 +233,8 @@ class MOME:
         # store empirically observed min and max rewards
         metrics["min_rewards"] = extra_scores["min_rewards"]
         metrics["max_rewards"] = extra_scores["max_rewards"]
+
+        metrics = {**metrics, **pc_actor_metrics}
 
         return repertoire, emitter_state, metrics, random_key
 

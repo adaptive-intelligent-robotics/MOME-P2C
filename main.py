@@ -17,7 +17,8 @@ from omegaconf import OmegaConf
 from plotting_functions import plotting_function
 from qdax import environments
 from qdax.core.containers.mapelites_repertoire import compute_cvt_centroids
-from qdax.core.emitters.pga_me_emitter import PGAMEConfig, MOPGAEmitter, PCMOPGAEmitter
+from qdax.core.emitters.pga_me_emitter import PGAMEConfig, MOPGAEmitter
+from qdax.core.emitters.pc_mome_pgx_emitter import PCMOPGAEmitter
 from qdax.core.mome import MOME
 from qdax.core.neuroevolution.mdp_utils import scoring_function, preference_conditioned_scoring_function
 from qdax.core.neuroevolution.networks.networks import MLP
@@ -34,7 +35,7 @@ from qdax.core.emitters.mutation_operators import (
     polynomial_mutation
 )
 
-from qdax.utils.metrics import default_moqd_metrics
+from qdax.utils.metrics import default_moqd_metrics, pc_actor_metrics
 from qdax.utils.pareto_front import uniform_preference_sampling
 
 
@@ -306,6 +307,7 @@ def main(config: ExperimentConfig) -> None:
             policy_network=policy_network,
             pc_actor_network=pc_actor_network,
             pc_actor_scoring_function=preference_conditioned_scoring_fn,
+            pc_actor_metrics_function=pc_actor_metrics,
             pc_actor_preferences_sample_fn=actor_sampling_fn,
             num_actor_active_samples=config.algo.num_actor_active_samples,
             sampler=sampler,

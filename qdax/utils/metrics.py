@@ -13,7 +13,7 @@ from jax import numpy as jnp
 from qdax.core.containers.ga_repertoire import GARepertoire
 from qdax.core.containers.mapelites_repertoire import MapElitesRepertoire
 from qdax.core.containers.mome_repertoire import MOMERepertoire
-from qdax.types import Metrics
+from qdax.types import Metrics, Preference
 from qdax.utils.pareto_front import compute_hypervolume
 
 
@@ -158,3 +158,23 @@ def default_moqd_metrics(
     }
 
     return metrics
+
+
+def pc_actor_metrics(
+    achieved_preferences: Preference,
+    sampled_preferences: Preference,
+)-> Metrics:
+    
+    
+    errors = jnp.abs(achieved_preferences - sampled_preferences)
+        
+    pc_actor_total_error = jnp.mean((
+        jnp.sum(errors, axis=1)
+    ))
+
+    pc_actor_metrics = {
+        "pc_actor_total_error": pc_actor_total_error,
+    }
+    
+    
+    return pc_actor_metrics
