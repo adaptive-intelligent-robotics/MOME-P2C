@@ -237,8 +237,9 @@ def scoring_function(
     descriptors = behavior_descriptor_extractor(data, mask)
 
     # set running reward mean and standard deviation to None
-    new_running_reward_mean = None
-    new_running_reward_std = None
+    new_rm = None
+    new_rv = None
+    new_rc = None
 
     if normalise_rewards:
                 
@@ -382,9 +383,10 @@ def preference_conditioned_scoring_function(
     descriptors = behavior_descriptor_extractor(data, mask)
 
     # set running reward mean and standard deviation to None
-    new_running_reward_mean = None
-    new_running_reward_std = None
-    
+    new_rm = None
+    new_rv = None
+    new_rc = None
+
     if normalise_rewards:
                 
         # Calculate normalised fitnesses
