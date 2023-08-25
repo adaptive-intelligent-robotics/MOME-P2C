@@ -226,10 +226,10 @@ class PCMOPGAEmitter(MultiEmitter):
 
         metrics["removed_count"] = jnp.sum(removed_list)
 
-        variation_added_list = added_list[:n_pg]
+        pg_added_list = added_list[:n_pg]
         mutation_added_list = added_list[n_pg+1:]
 
-        metrics[f'emitter_ga_count'] = jnp.sum(variation_added_list)
-        metrics[f'emitter_pg_count'] = jnp.sum(mutation_added_list)
+        metrics[f'emitter_pg_count'] = jnp.sum(pg_added_list)
+        metrics[f'emitter_ga_count'] = jnp.sum(mutation_added_list)
 
         return metrics
