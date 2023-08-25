@@ -187,6 +187,9 @@ class MOME:
         # store empirically observed min and max rewards
         metrics["min_rewards"] = extra_scores["min_rewards"]
         metrics["max_rewards"] = extra_scores["max_rewards"]
+        metrics["running_reward_mean"] = running_reward_mean
+        metrics["running_reward_var"] = running_reward_var
+        metrics["running_reward_count"] = running_reward_count
         
         metrics = {**metrics, **pc_actor_metrics}
         
@@ -283,7 +286,10 @@ class MOME:
         # store empirically observed min and max rewards
         metrics["min_rewards"] = extra_scores["min_rewards"]
         metrics["max_rewards"] = extra_scores["max_rewards"]
-
+        metrics["running_reward_mean"] = running_reward_mean
+        metrics["running_reward_var"] = running_reward_var
+        metrics["running_reward_count"] = running_reward_count
+        
         metrics = {**metrics, **pc_actor_metrics}
 
         return repertoire, emitter_state, metrics, running_stats, random_key
