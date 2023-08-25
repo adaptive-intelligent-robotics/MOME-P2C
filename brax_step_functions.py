@@ -9,8 +9,6 @@ def play_mo_step_fn(
         random_key,
         policy_network,
         env,
-        min_rewards,
-        max_rewards,
     ):
         """
         Play an environment step and return the updated state and the transition.
@@ -22,13 +20,11 @@ def play_mo_step_fn(
         
         state_desc = env_state.info["state_descriptor"]
         next_state = env.step(env_state, actions)
-
-        rewards = (next_state.reward - min_rewards)/(max_rewards - min_rewards)
         
         transition = QDTransition(
             obs=env_state.obs,
             next_obs=next_state.obs,
-            rewards=rewards,
+            rewards=next_state.reward,
             dones=next_state.done,
             actions=actions,
             truncations=next_state.info["truncation"],
@@ -48,8 +44,6 @@ def play_pc_mo_step_fn(
         random_key,
         policy_network,
         env,
-        min_rewards,
-        max_rewards,
     ):
         """
         Step function for preference-conditioned agent.
@@ -61,12 +55,10 @@ def play_pc_mo_step_fn(
         state_desc = env_state.info["state_descriptor"]
         next_state = env.step(env_state, actions)
 
-        rewards = (next_state.reward - min_rewards)/(max_rewards - min_rewards)
-
         transition = QDTransition(
             obs=env_state.obs,
             next_obs=next_state.obs,
-            rewards=rewards,
+            rewards=next_state.reward,
             dones=next_state.done,
             actions=actions,
             truncations=next_state.info["truncation"],

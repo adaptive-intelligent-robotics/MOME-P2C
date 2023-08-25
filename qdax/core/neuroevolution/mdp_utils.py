@@ -183,10 +183,15 @@ def generate_pc_unroll(
         "play_step_fn",
         "behavior_descriptor_extractor",
         "num_objective_functions",
+        "normalise_rewards",
+        "standardise_rewards",
     ),
 )
 def scoring_function(
     policies_params: Genotype,
+    running_reward_mean: jnp.ndarray,
+    running_reward_var: jnp.ndarray,
+    running_reward_count: int,
     random_key: RNGKey,
     init_states: brax.envs.State,
     episode_length: int,
@@ -196,6 +201,8 @@ def scoring_function(
     ],
     behavior_descriptor_extractor: Callable[[QDTransition, jnp.ndarray], Descriptor],
     num_objective_functions: int,
+    normalise_rewards: bool,
+    standardise_rewards: bool,
     min_rewards: Reward,
     max_rewards: Reward,
 ) -> Tuple[Fitness, Descriptor, Preference, ExtraScores, RNGKey]:
@@ -229,12 +236,63 @@ def scoring_function(
     fitnesses = jnp.sum(data.rewards * (1.0 - fitnesses_mask), axis=1)
     descriptors = behavior_descriptor_extractor(data, mask)
 
-    # Calculate unnormalised fitnesses
-    unnormalised_rewards = data.rewards * (max_rewards - min_rewards) + min_rewards
-    unnormalised_fitnesses = jnp.sum(unnormalised_rewards * (1.0 - fitnesses_mask), axis=1)
+    # set running reward mean and standard deviation to None
+    new_running_reward_mean = None
+    new_running_reward_std = None
 
+    if normalise_rewards:
+                
+        # Calculate normalised fitnesses
+        normalised_rewards = data.rewards - min_rewards / (max_rewards - min_rewards)
+        normalised_fitnesses = jnp.sum(normalised_rewards * (1.0 - fitnesses_mask), axis=1)
+
+        # Calculate achieved preferences
+        preferences = normalised_fitnesses / jnp.transpose(jnp.expand_dims(jnp.sum(normalised_fitnesses, axis=-1), axis=0))
+
+        data = data.replace(rewards=normalised_rewards)
+        
+    elif standardise_rewards:
+                
+        # calculate mean and batch size of rewards
+        nan_rewards = jnp.where(fitnesses_mask, jnp.nan, data.rewards)
+        all_rewards = jnp.concatenate(nan_rewards, axis=0)
+        rewards_batch_count = jnp.sum(mask)
+        rewards_batch_mean = jnp.nanmean(all_rewards, axis=0)
+        rewards_batch_var = jnp.nanvar(all_rewards, axis=0)
+        
+        # update runnning mean and standard deviation
+        def update_mean_var_count_from_moments(mean, var, count, batch_mean, batch_var, batch_count):
+            delta = batch_mean - mean
+            tot_count = count + batch_count
+
+            new_mean = mean + delta * batch_count / tot_count
+            m_a = var * count
+            m_b = batch_var * batch_count
+            M2 = m_a + m_b + jnp.square(delta) * count * batch_count / tot_count
+            new_var = M2 / tot_count
+            new_count = tot_count
+
+            return new_mean, new_var, new_count
+
+        new_rm, new_rv, new_rc = update_mean_var_count_from_moments(
+            running_reward_mean,
+            running_reward_var,
+            running_reward_count,
+            rewards_batch_mean,
+            rewards_batch_var,
+            rewards_batch_count,
+        )
+        
+        # Calculate standardised fitnesses
+        standardised_rewards = (data.rewards - new_rm) / jnp.sqrt(new_rv)
+        standardised_fitnesses = jnp.sum(standardised_rewards * (1.0 - fitnesses_mask), axis=1)
+        
+        # Calculate achieved preferences
+        preferences = standardised_fitnesses / jnp.transpose(jnp.expand_dims(jnp.sum(standardised_fitnesses, axis=-1), axis=0))
+
+        data = data.replace(rewards=standardised_rewards)
+        
     # Calculate preferences based on fitnesses:
-    preferences = fitnesses / jnp.transpose(jnp.expand_dims(jnp.sum(fitnesses, axis=-1), axis=0))
     preferences = jnp.clip(preferences, 0.0, 1.0)
 
     # Add preferences to transitions
@@ -246,13 +304,17 @@ def scoring_function(
     )
 
     return (
-        unnormalised_fitnesses,
+        fitnesses,
         descriptors,
         preferences,
         {
             "transitions": data,
-            "min_rewards": jnp.min(unnormalised_rewards, axis=(0,1)),
-            "max_rewards": jnp.max(unnormalised_rewards, axis=(0,1)),
+            "min_rewards": jnp.min(data.rewards, axis=(0,1)),
+            "max_rewards": jnp.max(data.rewards, axis=(0,1)),
+            "running_reward_mean": new_rm,
+            "running_reward_var": new_rv,
+            "running_reward_count": new_rc,
+            
         },
         random_key,
     )
@@ -265,11 +327,16 @@ def scoring_function(
         "pc_play_step_fn",
         "behavior_descriptor_extractor",
         "num_objective_functions",
+        "normalise_rewards",
+        "standardise_rewards",
     ),
 )
 def preference_conditioned_scoring_function(
     pc_actor_params: Genotype,
     input_preferences: Preference,
+    running_reward_mean: jnp.ndarray,
+    running_reward_var: jnp.ndarray,
+    running_reward_count: int,
     random_key: RNGKey,
     init_states: brax.envs.State,
     episode_length: int,
@@ -279,6 +346,8 @@ def preference_conditioned_scoring_function(
     ],
     behavior_descriptor_extractor: Callable[[QDTransition, jnp.ndarray], Descriptor],
     num_objective_functions: int,
+    normalise_rewards: bool,
+    standardise_rewards: bool,
     min_rewards: jnp.ndarray,
     max_rewards: jnp.ndarray,
 ) -> Tuple[Fitness, Descriptor, Preference, ExtraScores, RNGKey]:
@@ -312,15 +381,66 @@ def preference_conditioned_scoring_function(
     fitnesses = jnp.sum(data.rewards * (1.0 - fitnesses_mask), axis=1)
     descriptors = behavior_descriptor_extractor(data, mask)
 
-    # Calculate unnormalised fitnesses
-    unnormalised_rewards = data.rewards * (max_rewards - min_rewards) + min_rewards
-    unnormalised_fitnesses = jnp.sum(unnormalised_rewards * (1.0 - fitnesses_mask), axis=1)
+    # set running reward mean and standard deviation to None
+    new_running_reward_mean = None
+    new_running_reward_std = None
+    
+    if normalise_rewards:
+                
+        # Calculate normalised fitnesses
+        normalised_rewards = data.rewards - min_rewards / (max_rewards - min_rewards)
+        normalised_fitnesses = jnp.sum(normalised_rewards * (1.0 - fitnesses_mask), axis=1)
 
-    # Calculate achieved preferences
-    achieved_preferences = fitnesses / jnp.transpose(jnp.expand_dims(jnp.sum(fitnesses, axis=-1), axis=0))
+        # Calculate achieved preferences
+        achieved_preferences = normalised_fitnesses / jnp.transpose(jnp.expand_dims(jnp.sum(normalised_fitnesses, axis=-1), axis=0))
+
+        data = data.replace(rewards=normalised_rewards)
+        
+    elif standardise_rewards:
+        
+        # calculate mean and batch size of rewards
+        nan_rewards = jnp.where(fitnesses_mask, jnp.nan, data.rewards)
+        all_rewards = jnp.concatenate(nan_rewards, axis=0)
+        rewards_batch_count = jnp.sum(mask)
+        rewards_batch_mean = jnp.nanmean(all_rewards, axis=0)
+        rewards_batch_var = jnp.nanvar(all_rewards, axis=0)
+        
+        # update runnning mean and standard deviation
+        def update_mean_var_count_from_moments(mean, var, count, batch_mean, batch_var, batch_count):
+            delta = batch_mean - mean
+            tot_count = count + batch_count
+
+            new_mean = mean + delta * batch_count / tot_count
+            m_a = var * count
+            m_b = batch_var * batch_count
+            M2 = m_a + m_b + jnp.square(delta) * count * batch_count / tot_count
+            new_var = M2 / tot_count
+            new_count = tot_count
+
+            return new_mean, new_var, new_count
+
+        new_rm, new_rv, new_rc = update_mean_var_count_from_moments(
+            running_reward_mean,
+            running_reward_var,
+            running_reward_count,
+            rewards_batch_mean,
+            rewards_batch_var,
+            rewards_batch_count,
+        )
+        
+        # Calculate standardised fitnesses
+        standardised_rewards = (data.rewards - new_rm) / jnp.sqrt(new_rv)
+        standardised_fitnesses = jnp.sum(standardised_rewards * (1.0 - fitnesses_mask), axis=1)
+        
+        # Calculate achieved preferences
+        achieved_preferences = standardised_fitnesses / jnp.transpose(jnp.expand_dims(jnp.sum(standardised_fitnesses, axis=-1), axis=0))
+
+        data = data.replace(rewards=standardised_rewards)
+
+        
+    # Add preferences to transitions
     achieved_preferences = jnp.clip(achieved_preferences, 0.0, 1.0)
 
-    # Add preferences to transitions
     tiled_input_preferences = jnp.repeat(
             input_preferences[:, jnp.newaxis, :], episode_length, axis=1)
 
@@ -331,13 +451,17 @@ def preference_conditioned_scoring_function(
     data = data.replace(preference=tiled_achieved_preferences,
                         input_preference=tiled_input_preferences
     )
-
+    
+    
     return (
-        unnormalised_fitnesses,
+        fitnesses,
         descriptors,
         achieved_preferences,
         {
             "transitions": data,
+            "running_reward_mean": new_rm,
+            "running_reward_var": new_rv,
+            "running_reward_count": new_rc,
         },
         random_key,
     )

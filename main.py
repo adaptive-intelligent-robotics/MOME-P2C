@@ -153,8 +153,6 @@ def main(config: ExperimentConfig) -> None:
         play_mo_step_fn,
         policy_network=policy_network,
         env=env,
-        min_rewards=jnp.array(config.env.min_rewards),
-        max_rewards=jnp.array(config.env.max_rewards),
     )  
 
     # Define a metrics function
@@ -172,6 +170,8 @@ def main(config: ExperimentConfig) -> None:
         play_step_fn=play_step_fn,
         behavior_descriptor_extractor=bd_extraction_fn,
         num_objective_functions=config.env.num_objective_functions,
+        normalise_rewards=config.env.normalise_rewards,
+        standardise_rewards=config.env.standardise_rewards,
         min_rewards=jnp.array(config.env.min_rewards),
         max_rewards=jnp.array(config.env.max_rewards),
     )
@@ -246,8 +246,6 @@ def main(config: ExperimentConfig) -> None:
             play_pc_mo_step_fn,
             policy_network=pc_actor_network,
             env=env,
-            min_rewards=jnp.array(config.env.min_rewards),
-            max_rewards=jnp.array(config.env.max_rewards),
         )  
         
         if config.algo.pc_actor_uniform_preference_sampling:
@@ -262,6 +260,8 @@ def main(config: ExperimentConfig) -> None:
                 pc_play_step_fn=play_pc_mo_step_function,
                 behavior_descriptor_extractor=bd_extraction_fn,
                 num_objective_functions=config.env.num_objective_functions,
+                normalise_rewards=config.env.normalise_rewards,
+                standardise_rewards=config.env.standardise_rewards,
                 min_rewards=jnp.array(config.env.min_rewards),
                 max_rewards=jnp.array(config.env.max_rewards),
             )
@@ -369,11 +369,12 @@ def main(config: ExperimentConfig) -> None:
     algorithm_start_time = time.time()
 
     # Initialize repertoire and emitter state
-    repertoire, init_metrics, emitter_state, random_key = mome.init(
+    repertoire, init_metrics, emitter_state, running_stats, random_key = mome.init(
         init_genotypes,
         centroids,
         config.pareto_front_max_length,
-        random_key
+        random_key,
+        num_objective_functions=config.env.num_objective_functions,
     )
 
     initial_repertoire_time = time.time() - algorithm_start_time
@@ -413,9 +414,9 @@ def main(config: ExperimentConfig) -> None:
         start_time = time.time()
 
         # 'Log period' number of QD itertions
-        (repertoire, emitter_state, random_key,), metrics = jax.lax.scan(
+        (repertoire, emitter_state, running_stats, random_key,), metrics = jax.lax.scan(
             mome_scan_fn,
-            (repertoire, emitter_state, random_key),
+            (repertoire, emitter_state, running_stats, random_key),
             (),
             length=config.metrics_log_period,
         )

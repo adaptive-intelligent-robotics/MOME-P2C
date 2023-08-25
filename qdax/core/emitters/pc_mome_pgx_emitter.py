@@ -98,6 +98,9 @@ class PCMOPGAEmitter(MultiEmitter):
         self,
         repertoire: MOMERepertoire,
         emitter_state: MultiEmitterState,
+        running_reward_mean: jnp.ndarray,
+        running_reward_std: jnp.ndarray,
+        running_reward_count: int,
         random_key: RNGKey,
     )-> Tuple[MultiEmitterState, RNGKey]:
         """Evaluates the preference conditioned actor on given preferences in the environment
@@ -121,6 +124,9 @@ class PCMOPGAEmitter(MultiEmitter):
         _, _, achieved_preferences, extra_scores, random_key = self._pc_actor_scoring_function(
             actor_eval_params,
             sampled_preferences,
+            running_reward_mean,
+            running_reward_std,
+            running_reward_count,
             random_key
         )
         
@@ -137,7 +143,7 @@ class PCMOPGAEmitter(MultiEmitter):
 
         new_emitter_state = MultiEmitterState(tuple([new_pg_emitter_state, ga_emitter_state]))
 
-        return new_emitter_state, pc_actor_metrics, random_key
+        return new_emitter_state, extra_scores, pc_actor_metrics, random_key
 
     def init_random_pg(
         self,

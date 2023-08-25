@@ -20,3 +20,7 @@ max_rewards: [13, 0]
 
 # Emperical Maximum Hypervolume for the environment: 5423918.0
 max_hypervolume: 6000000.0
+
+# Normalisation/Standardisation of rewards
+standardise_rewards: True
+normalise_rewards: False

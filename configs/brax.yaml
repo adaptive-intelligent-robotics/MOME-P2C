@@ -24,7 +24,7 @@ policy_hidden_layer_sizes: [64, 64]
 
 # Defaults
 defaults:
-    - algo: mome_pgx
+    - algo: mome-pgx
     - env: walker2d_multi
 
 # Emitter parameters

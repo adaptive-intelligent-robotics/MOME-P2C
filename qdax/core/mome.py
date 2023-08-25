@@ -50,13 +50,14 @@ class MOME:
         self._bias_sampling = bias_sampling
         self._preference_conditioned = preference_conditioned
 
-    @partial(jax.jit, static_argnames=("self", "pareto_front_max_length"))
+    @partial(jax.jit, static_argnames=("self", "pareto_front_max_length", "num_objective_functions"))
     def init(
         self,
         init_genotypes: jnp.ndarray,
         centroids: Centroid,
         pareto_front_max_length: int,
         random_key: RNGKey,
+        num_objective_functions: int=2,
     ) -> Tuple[MOMERepertoire, Optional[EmitterState], RNGKey]:
         """Initialize a MOME grid with an initial population of genotypes. Requires
         the definition of centroids that can be computed with any method such as
@@ -72,12 +73,24 @@ class MOME:
         Returns:
             The initial repertoire and emitter state, and a new random key.
         """
+        running_reward_mean = jnp.zeros(num_objective_functions, dtype=jnp.float32)
+        running_reward_var = jnp.zeros(num_objective_functions, dtype=jnp.float32)
+        running_reward_count = 0
 
         # first score
         fitnesses, descriptors, preferences, extra_scores, random_key = self._scoring_function(
-            init_genotypes, random_key
+            init_genotypes,
+            running_reward_mean,
+            running_reward_var,
+            running_reward_count,
+            random_key
         )
 
+        # Update running statistics
+        running_reward_mean = extra_scores["running_reward_mean"]
+        running_reward_var = extra_scores["running_reward_var"]
+        running_reward_count = extra_scores["running_reward_count"]
+        
         # init the repertoire
         if self._bias_sampling:
             repertoire, container_addition_metrics = BiasedSamplingMOMERepertoire.init(
@@ -117,12 +130,20 @@ class MOME:
             #     init_genotypes
             # )
             
-            emitter_state, pc_actor_metrics, random_key = self._emitter.evaluate_preference_conditioned_actor(
+            emitter_state, actor_extra_scores, pc_actor_metrics, random_key = self._emitter.evaluate_preference_conditioned_actor(
                 repertoire=repertoire,
                 emitter_state=emitter_state,
+                running_reward_mean=running_reward_mean,
+                running_reward_std=running_reward_var,
+                running_reward_count=running_reward_count,
                 random_key=random_key,
             )
             
+            # Update running statistics
+            running_reward_mean = actor_extra_scores["running_reward_mean"]
+            running_reward_var = actor_extra_scores["running_reward_var"]
+            running_reward_count = actor_extra_scores["running_reward_count"]
+                       
             # Do some policy gradient on random weights to initialise buffers
             new_genotypes, random_weights, random_key = self._emitter.init_random_pg(
                 emitter_state = emitter_state,
@@ -136,12 +157,19 @@ class MOME:
             )
             
             # score new fitnesses to record delta fitness from weights 
-            fitnesses, _, _, _, random_key = self._scoring_function(
-                new_genotypes, random_key
+            fitnesses, _, _, extra_scores, random_key = self._scoring_function(
+                new_genotypes,
+                running_reward_mean,
+                running_reward_var,
+                running_reward_count,
+                random_key
             )
             
+            # Update running statistics
+            running_reward_mean = extra_scores["running_reward_mean"]
+            running_reward_var = extra_scores["running_reward_var"]
+            running_reward_count = extra_scores["running_reward_count"]
             
-
         # update emitter state
         emitter_state = self._emitter.state_update(
             emitter_state=emitter_state,
@@ -161,8 +189,10 @@ class MOME:
         metrics["max_rewards"] = extra_scores["max_rewards"]
         
         metrics = {**metrics, **pc_actor_metrics}
+        
+        running_stats = (running_reward_mean, running_reward_var, running_reward_count)
 
-        return repertoire, metrics, emitter_state, random_key
+        return repertoire, metrics, emitter_state, running_stats, random_key
 
 
     @partial(jax.jit, static_argnames=("self",))
@@ -170,6 +200,7 @@ class MOME:
         self,
         repertoire: MOMERepertoire,
         emitter_state: Optional[EmitterState],
+        running_stats: Tuple[jnp.ndarray, jnp.ndarray, int],
         random_key: RNGKey,
     ) -> Tuple[MOMERepertoire, Optional[EmitterState], Metrics, RNGKey]:
         """
@@ -191,6 +222,8 @@ class MOME:
             metrics about the updated repertoire
             a new jax PRNG key
         """
+        running_reward_mean, running_reward_var, running_reward_count = running_stats
+        
         # generate offsprings with the emitter
         genotypes, emitter_state, random_key = self._emitter.emit(
             repertoire, emitter_state, random_key
@@ -198,9 +231,19 @@ class MOME:
         
         # scores the offsprings
         fitnesses, descriptors, preferences, extra_scores, random_key = self._scoring_function(
-            genotypes, random_key
+            genotypes,
+            running_reward_mean,
+            running_reward_var,
+            running_reward_count,
+            random_key
         )
 
+       
+        # Update running statistics
+        running_reward_mean = extra_scores["running_reward_mean"]
+        running_reward_var = extra_scores["running_reward_var"]
+        running_reward_count = extra_scores["running_reward_count"]
+        
         # add genotypes in the repertoire
         repertoire, container_addition_metrics = repertoire.add(genotypes, descriptors, fitnesses, preferences)
 
@@ -220,11 +263,18 @@ class MOME:
             
         # Evaluate preference conditioned actor and add samples to replay buffer
         if self._preference_conditioned:
-            emitter_state, pc_actor_metrics, random_key = self._emitter.evaluate_preference_conditioned_actor(
+            emitter_state, actor_extra_scores, pc_actor_metrics, random_key = self._emitter.evaluate_preference_conditioned_actor(
                 repertoire=repertoire,
                 emitter_state=emitter_state,
+                running_reward_mean=running_reward_mean,
+                running_reward_std=running_reward_var,
+                running_reward_count=running_reward_count,
                 random_key=random_key,
             )
+            
+            running_reward_mean = actor_extra_scores["running_reward_mean"]
+            running_reward_var = actor_extra_scores["running_reward_var"]
+            running_reward_count = actor_extra_scores["running_reward_count"]
 
         # update the metrics
         metrics = self._metrics_function(repertoire)
@@ -236,7 +286,7 @@ class MOME:
 
         metrics = {**metrics, **pc_actor_metrics}
 
-        return repertoire, emitter_state, metrics, random_key
+        return repertoire, emitter_state, metrics, running_stats, random_key
 
     @partial(jax.jit, static_argnames=("self",))
     def scan_update(
@@ -255,10 +305,10 @@ class MOME:
         Returns:
             The updated repertoire and emitter state, with a new random key and metrics.
         """
-        repertoire, emitter_state, random_key = carry
+        repertoire, emitter_state, running_stats, random_key = carry
 
-        repertoire, emitter_state, metrics, random_key = self.update(
-            repertoire, emitter_state, random_key
+        repertoire, emitter_state, metrics, running_stats, random_key = self.update(
+            repertoire, emitter_state, running_stats, random_key
         )
 
-        return (repertoire, emitter_state, random_key), metrics
+        return (repertoire, emitter_state, running_stats, random_key), metrics
