@@ -236,10 +236,10 @@ def scoring_function(
     fitnesses = jnp.sum(data.rewards * (1.0 - fitnesses_mask), axis=1)
     descriptors = behavior_descriptor_extractor(data, mask)
 
-    # set running reward mean and standard deviation to None
-    new_rm = None
-    new_rv = None
-    new_rc = None
+    # set running reward mean and standard deviation to 0
+    new_rm = jnp.zeros(num_objective_functions, dtype=jnp.float32)
+    new_rv = jnp.zeros(num_objective_functions, dtype=jnp.float32)
+    new_rc = 0
 
     if normalise_rewards:
                 
@@ -382,10 +382,10 @@ def preference_conditioned_scoring_function(
     fitnesses = jnp.sum(data.rewards * (1.0 - fitnesses_mask), axis=1)
     descriptors = behavior_descriptor_extractor(data, mask)
 
-    # set running reward mean and standard deviation to None
-    new_rm = None
-    new_rv = None
-    new_rc = None
+    # set running reward mean and standard deviation to 0
+    new_rm = jnp.zeros(num_objective_functions, dtype=jnp.float32)
+    new_rv = jnp.zeros(num_objective_functions, dtype=jnp.float32)
+    new_rc = 0
 
     if normalise_rewards:
                 
