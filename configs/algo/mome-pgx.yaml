@@ -7,6 +7,7 @@ preference_conditioned: False
 # Emitter params
 mutation_ga_batch_size: 128
 mutation_qpg_batch_size: 64
+num_actor_active_samples: 0
 
 # WandB Log Metrics
 wandb_metrics_keys: [

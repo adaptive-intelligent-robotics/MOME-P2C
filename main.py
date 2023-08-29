@@ -316,7 +316,7 @@ def main(config: ExperimentConfig) -> None:
         )
 
     # Set up logging functions 
-    num_iterations = config.num_evaluations // config.total_batch_size
+    num_iterations = config.num_evaluations // (config.total_batch_size + config.algo.num_actor_active_samples)
     num_loops = int(num_iterations/config.metrics_log_period)
 
     logging.basicConfig(level=logging.DEBUG)
@@ -408,6 +408,7 @@ def main(config: ExperimentConfig) -> None:
             "init",
         )
         plt.close()
+        
     
     # Run the algorithm
     for iteration in range(num_loops):
@@ -427,7 +428,6 @@ def main(config: ExperimentConfig) -> None:
         # log metrics
         metrics_history = {key: jnp.concatenate((metrics_history[key], metrics[key]), axis=0) for key in metrics}
         logged_metrics = {"iteration": (iteration+ 1)*config.metrics_log_period,  "time": timelapse}
-
 
 
         for key in config.algo.wandb_metrics_keys:

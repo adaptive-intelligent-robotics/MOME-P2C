@@ -7,7 +7,7 @@ preference_conditioned: False
 # Emitter params
 mutation_ga_batch_size: 256
 mutation_qpg_batch_size: 0
-
+num_actor_active_samples: 0
 
 # Polynomial mutation params
 proportion_to_mutate: 0.6 # don't actually use this as purely crossover
