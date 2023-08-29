@@ -35,7 +35,7 @@ from qdax.core.emitters.mutation_operators import (
     polynomial_mutation
 )
 
-from qdax.utils.metrics import default_moqd_metrics, pc_actor_metrics
+from qdax.utils.metrics import default_moqd_metrics, moqd_metrics_3d, pc_actor_metrics
 from qdax.utils.pareto_front import uniform_preference_sampling
 
 
@@ -156,10 +156,16 @@ def main(config: ExperimentConfig) -> None:
     )  
 
     # Define a metrics function
-    metrics_fn = partial(
-        default_moqd_metrics,
-        reference_point=jnp.array(reference_point),
-    )
+    if config.env.num_objective_functions == 2:
+        metrics_fn = partial(
+            default_moqd_metrics,
+            reference_point=jnp.array(reference_point),
+        )
+    else:
+        metrics_fn = partial(
+            moqd_metrics_3d,
+            reference_point=jnp.array(reference_point),
+        )
 
     # Prepare the scoring function
     bd_extraction_fn = environments.behavior_descriptor_extractor[config.env_name]

@@ -3,9 +3,11 @@
 import chex
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from functools import partial
 from typing import Tuple
+from pymoo.indicators.hv import HV
 from qdax.types import (
     Mask,
     ParetoFront,
@@ -146,6 +148,25 @@ def compute_hypervolume(
     hypervolume = jnp.sum(sumdiff)
 
     return hypervolume
+
+
+def compute_hypervolume_3d(
+    pareto_front: ParetoFront[jnp.ndarray],
+    reference_point: jnp.ndarray
+) -> jnp.ndarray:
+
+    mask = pareto_front == -jnp.inf
+    _pf = jnp.where(mask, reference_point, pareto_front)
+    _ref_point = reference_point
+
+    def _hv(ref_point, pf):
+        return HV(ref_point=ref_point * -1)(pf * -1).astype(np.float32)
+
+    _hv_shape = jax.core.ShapedArray((), jnp.float32)
+    hv = jax.pure_callback(_hv, _hv_shape, _ref_point, _pf)
+
+    return hv
+
 
 
 @partial(jax.jit, static_argnames=("batch_size", "num_objectives"))

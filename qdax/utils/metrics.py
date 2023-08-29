@@ -14,7 +14,7 @@ from qdax.core.containers.ga_repertoire import GARepertoire
 from qdax.core.containers.mapelites_repertoire import MapElitesRepertoire
 from qdax.core.containers.mome_repertoire import MOMERepertoire
 from qdax.types import Metrics, Preference
-from qdax.utils.pareto_front import compute_hypervolume
+from qdax.utils.pareto_front import compute_hypervolume, compute_hypervolume_3d
 
 
 class CSVLogger:
@@ -128,6 +128,7 @@ def default_moqd_metrics(
     #### Calculate unnormalised hypervolume metrics
     hypervolume_function = partial(compute_hypervolume, reference_point=reference_point)
     hypervolumes = jax.vmap(hypervolume_function)(repertoire.fitnesses)  # num centroids
+
     hypervolumes = jnp.where(repertoire_not_empty, hypervolumes, -jnp.inf)
     moqd_score = jnp.sum(repertoire_not_empty * hypervolumes)
     max_hypervolume = jnp.max(hypervolumes)
@@ -185,3 +186,64 @@ def pc_actor_metrics(
     
     
     return pc_actor_metrics
+
+
+def moqd_metrics_3d(
+    repertoire: MOMERepertoire, 
+    reference_point: jnp.ndarray,
+) -> Metrics:
+    """Compute the MOQD metric given a MOME repertoire and a reference point.
+
+    Args:
+        repertoire: a MOME repertoire.
+        reference_point: the hypervolume of a pareto front has to be computed
+            relatively to a reference point.
+
+    Returns:
+        A dictionary containing all the computed metrics.
+    """
+    # Calculating coverage
+    repertoire_empty = repertoire.fitnesses == -jnp.inf # num centroids x pareto-front length x num criteria
+    min_scores = jnp.min(~repertoire_empty * repertoire.fitnesses, axis=(0, 1))
+    repertoire_empty = jnp.all(repertoire_empty, axis=-1) # num centroids x pareto-front length
+    repertoire_not_empty = ~repertoire_empty # num centroids x pareto-front length
+    num_solutions = jnp.sum(repertoire_not_empty, axis=-1)
+    total_num_solutions = jnp.sum(num_solutions)
+    repertoire_not_empty = jnp.any(repertoire_not_empty, axis=-1) # num centroids
+    coverage = 100 * jnp.mean(repertoire_not_empty)
+
+    #### Calculate unnormalised hypervolume metrics
+    hypervolume_function = partial(compute_hypervolume_3d, reference_point=reference_point)
+    hypervolumes = jax.vmap(hypervolume_function)(repertoire.fitnesses)  # num centroids
+    hypervolumes = jnp.where(repertoire_not_empty, hypervolumes, -jnp.inf)
+    moqd_score = jnp.sum(repertoire_not_empty * hypervolumes)
+    max_hypervolume = jnp.max(hypervolumes)
+
+    max_scores = jnp.max(repertoire.fitnesses, axis=(0, 1))
+    max_sum_scores = jnp.max(jnp.sum(repertoire.fitnesses, axis=-1), axis=(0, 1))
+
+    (
+        pareto_front,
+        _,
+    ) = repertoire.compute_global_pareto_front()
+
+    global_hypervolume = compute_hypervolume_3d(
+        pareto_front, reference_point=reference_point
+    )
+
+    metrics = {
+        "hypervolumes": hypervolumes,
+        "moqd_score": moqd_score,
+        "max_hypervolume": max_hypervolume,
+        "max_scores": max_scores,
+        "min_scores": min_scores,
+        "max_sum_scores": max_sum_scores,
+        "coverage": coverage,
+        "num_solutions": num_solutions,
+        "total_num_solutions": total_num_solutions,
+        "global_hypervolume": global_hypervolume,
+    }
+
+    return metrics
+
+
