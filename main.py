@@ -82,7 +82,6 @@ class ExperimentConfig:
     noise_clip: float 
     policy_noise: float 
     discount: float 
-    reward_scaling: Tuple[float, ...]
     transitions_batch_size: int 
     soft_tau_update: float 
     policy_delay: int
@@ -204,7 +203,7 @@ def main(config: ExperimentConfig) -> None:
             noise_clip=config.noise_clip,
             policy_noise=config.policy_noise,
             discount=config.discount,
-            reward_scaling=config.reward_scaling,
+            reward_scaling=jnp.ones(config.env.num_objective_functions),
             replay_buffer_size=config.replay_buffer_size,
             soft_tau_update=config.soft_tau_update,
             policy_delay=config.policy_delay,

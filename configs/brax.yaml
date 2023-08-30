@@ -41,7 +41,6 @@ policy_learning_rate: 0.001
 noise_clip: 0.5 
 policy_noise: 0.2 
 discount: 0.99 
-reward_scaling: [1.0, 1.0]  
 transitions_batch_size: 256 
 soft_tau_update: 0.005 
 policy_delay: 2

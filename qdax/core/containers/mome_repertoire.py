@@ -615,9 +615,10 @@ class MOMERepertoire(flax.struct.PyTreeNode):
             The pareto front and its mask.
         """
         fitnesses = jnp.concatenate(self.fitnesses, axis=0)
+        num_objectives = fitnesses.shape[-1]
         mask = jnp.any(fitnesses == -jnp.inf, axis=-1)
         pareto_mask = compute_masked_pareto_front(fitnesses, mask)
-        pareto_front = fitnesses - jnp.inf * (~jnp.array([pareto_mask, pareto_mask]).T)
+        pareto_front = fitnesses - jnp.inf * (~jnp.repeat(jnp.expand_dims(pareto_mask, axis=1), repeats=num_objectives, axis=1))
 
         return pareto_front, pareto_mask
 
