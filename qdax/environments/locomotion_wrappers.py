@@ -374,3 +374,94 @@ class MultiObjectiveRewardWrapper(Wrapper):
             axis=-1
         )
         return state.replace(reward=new_reward)  
+
+
+class HopperTriRewardWrapper(Wrapper):
+    """Wraps gym environments and replaces reward with multi-objective rewards.
+
+    Utilisation is simple: create an environment with Brax, pass
+    it to the wrapper with the name of the environment, and it will
+    work like before and will simply use forward reward and negative energy as rewards.
+    """
+
+    def __init__(self, env: Env, env_name: str) -> None:
+        if env_name not in (FORWARD_REWARD_NAMES.keys() and MINIMISE_ENERGY_REWARD_NAMES.keys()):
+            raise NotImplementedError(f"This wrapper does not support {env_name} yet.")
+        super().__init__(env)
+        self._env_name = env_name
+        self._fd_reward_field = FORWARD_REWARD_NAMES[env_name]
+        self._minimise_energy_reward_field = MINIMISE_ENERGY_REWARD_NAMES[env_name]
+        self._cog_idx = env.sys.body.index[COG_NAMES[env_name]]
+
+    @property
+    def name(self) -> str:
+        return self._env_name
+
+    def reset(self, rng: jp.ndarray) -> State:
+        state = self.env.reset(rng)
+        new_reward = jp.zeros((3,))
+        return state.replace(reward=new_reward)
+
+    def step(self, state: State, action: jp.ndarray) -> State:
+        state = self.env.step(state, action)
+        new_reward = jnp.concatenate(
+            (jp.array((state.metrics[self._fd_reward_field],)), 
+            jp.array((state.metrics[self._minimise_energy_reward_field],)),
+            jp.array((state.qp.pos[self._cog_idx][-1],))
+            ), 
+            axis=-1
+        )
+        return state.replace(reward=new_reward)
+    
+
+X_VELOCITY_REWARD_INDEX = {
+    "ant": 13,
+    "halfcheetah": 9,
+    "walker2d": 8,
+    "humanoid": 22,
+}
+
+Y_VELOCITY_REWARD_INDEX = {
+    "ant": 14,
+    "halfcheetah": 10,
+    "walker2d": 9,
+    "humanoid": 23,
+}
+
+
+class TriRewardWrapper(Wrapper):
+    """Wraps gym environments and replaces reward with multi-objective rewards.
+
+    Utilisation is simple: create an environment with Brax, pass
+    it to the wrapper with the name of the environment, and it will
+    work like before and will simply use forward reward and negative energy as rewards.
+    """
+
+    def __init__(self, env: Env, env_name: str) -> None:
+        if env_name not in (FORWARD_REWARD_NAMES.keys() and MINIMISE_ENERGY_REWARD_NAMES.keys()):
+            raise NotImplementedError(f"This wrapper does not support {env_name} yet.")
+        super().__init__(env)
+        self._env_name = env_name
+        self._x_velocity_reward_field = X_VELOCITY_REWARD_INDEX[env_name]
+        self._y_velocity_reward_field = Y_VELOCITY_REWARD_INDEX[env_name]
+        self._minimise_energy_reward_field = MINIMISE_ENERGY_REWARD_NAMES[env_name]
+
+    @property
+    def name(self) -> str:
+        return self._env_name
+
+    def reset(self, rng: jp.ndarray) -> State:
+        state = self.env.reset(rng)
+        new_reward = jp.zeros((3,))
+        return state.replace(reward=new_reward)
+
+    def step(self, state: State, action: jp.ndarray) -> State:
+        state = self.env.step(state, action)
+        new_reward = jnp.concatenate(
+            (jp.array((state.obs[self._x_velocity_reward_field],)),
+            jp.array((state.obs[self._y_velocity_reward_field],)),
+            jp.array((state.metrics[self._minimise_energy_reward_field],)),
+            ), 
+            axis=-1
+        )
+        return state.replace(reward=new_reward)  

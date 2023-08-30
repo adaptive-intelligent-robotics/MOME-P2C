@@ -1,0 +1,22 @@
+name: ant_tri
+
+num_descriptor_dimensions: 4
+num_objective_functions: 3
+
+# Min and max val of BDs
+min_bd: 0. 
+max_bd: 1.
+
+# Min and Max values of rewards for reference points
+reference_point: [-350, -350, -4500]
+
+# Min and Max values for rewards for normalisation
+min_rewards: [-7, -7, -4.5]
+max_rewards: [8, 8, 0]
+
+# Empirical Maximum Hypervolume for the environment: 20053136.0
+max_hypervolume: 210000000.0
+
+# Normalisation/Standardisation of rewards
+standardise_rewards: True
+normalise_rewards: False

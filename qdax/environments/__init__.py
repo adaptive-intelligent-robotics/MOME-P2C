@@ -13,8 +13,10 @@ from qdax.environments.exploration_wrappers import MazeWrapper, TrapWrapper
 from qdax.environments.init_state_wrapper import FixedInitialStateWrapper
 from qdax.environments.locomotion_wrappers import (
     FeetContactWrapper,
+    HopperTriRewardWrapper,
     MultiObjectiveRewardWrapper,
     NoForwardRewardWrapper,
+    TriRewardWrapper,
     XYPositionWrapper,
 )
 from qdax.environments.pointmaze import PointMaze
@@ -58,6 +60,11 @@ behavior_descriptor_extractor = {
     "halfcheetah_multi": get_feet_contact_proportion,
     "hopper_multi": get_feet_contact_proportion,
     "walker2d_multi": get_feet_contact_proportion,
+    "ant_tri": get_feet_contact_proportion,
+    "humanoid_tri": get_feet_contact_proportion,
+    "halfcheetah_tri": get_feet_contact_proportion,
+    "hopper_tri": get_feet_contact_proportion,
+    "walker2d_tri": get_feet_contact_proportion,
 }
 
 _qdax_envs = {
@@ -138,6 +145,31 @@ _qdax_custom_envs = {
     "walker2d_multi": {
         "env": "walker2d",
         "wrappers": [FeetContactWrapper, MultiObjectiveRewardWrapper],
+        "kwargs": [{}, {}],
+    },
+    "ant_tri": {
+        "env": "ant",
+        "wrappers": [FeetContactWrapper, TriRewardWrapper],
+        "kwargs": [{}, {}],
+    },
+    "humanoid_tri": {
+        "env": "humanoid",
+        "wrappers": [FeetContactWrapper, TriRewardWrapper],
+        "kwargs": [{}, {}],
+    },
+    "halfcheetah_tri": {
+        "env": "halfcheetah",
+        "wrappers": [FeetContactWrapper, TriRewardWrapper],
+        "kwargs": [{}, {}],
+    },
+    "hopper_tri": {
+        "env": "hopper",
+        "wrappers": [FeetContactWrapper, HopperTriRewardWrapper],
+        "kwargs": [{}, {}],
+    },
+    "walker2d_tri": {
+        "env": "walker2d",
+        "wrappers": [FeetContactWrapper, TriRewardWrapper],
         "kwargs": [{}, {}],
     },
 }

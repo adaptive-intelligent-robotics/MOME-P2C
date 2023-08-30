@@ -1,0 +1,24 @@
+name: hopper_tri
+
+num_descriptor_dimensions: 1
+num_objective_functions: 3
+
+# Min and max val of BDs
+min_bd: 0. 
+max_bd: 1.
+
+# Min and Max values of rewards for reference points
+reference_point: [-50, -2, -2]
+
+# Min and Max values of rewards for reference points
+
+min_rewards: [-5, -0.0035, -1]
+max_rewards: [8, 0, 10]
+
+# Empirical Maximum Hypervolume for the environment: 1891.3987
+max_hypervolume: 25000.0
+
+# Normalisation/Standardisation of rewards
+standardise_rewards: True
+normalise_rewards: False
+
