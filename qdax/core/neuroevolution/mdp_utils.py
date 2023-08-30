@@ -240,6 +240,7 @@ def scoring_function(
     new_rm = jnp.zeros(num_objective_functions, dtype=jnp.float32)
     new_rv = jnp.zeros(num_objective_functions, dtype=jnp.float32)
     new_rc = 0
+    preferences = fitnesses
 
     if normalise_rewards:
                 
