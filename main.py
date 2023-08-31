@@ -99,14 +99,14 @@ class ExperimentConfig:
 @hydra.main(config_path="configs/", config_name="brax")
 def main(config: ExperimentConfig) -> None:
 
-#    # Save params to weights and biases 
-#     wandb.init(
-#         # set the wandb project where this run will be logged
-#         project=f"PC-MOME-PGX",
-#         name=f"{config.algo_name}",
-#         # track hyperparameters and run metadata
-#         config=OmegaConf.to_container(config, resolve=True),
-#     )
+   # Save params to weights and biases 
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project=f"PC-MOME-PGX",
+        name=f"{config.algo_name}",
+        # track hyperparameters and run metadata
+        config=OmegaConf.to_container(config, resolve=True),
+    )
 
 
     # Init environment
@@ -444,7 +444,7 @@ def main(config: ExperimentConfig) -> None:
         logger.warning(f"--- MOQD Score: {metrics['moqd_score'][-1]:.2f}")
         logger.warning(f"--- Coverage: {metrics['coverage'][-1]:.2f}%")
         logger.warning("--- Max Fitnesses:" +  str(metrics['max_scores'][-1]))
-        # wandb.log(logged_metrics)
+        wandb.log(logged_metrics)
 
         # Save plot of repertoire every plot_repertoire_period
         if (iteration+1)*config.metrics_log_period % config.plot_repertoire_period == 0:
@@ -518,7 +518,7 @@ def main(config: ExperimentConfig) -> None:
             "final",
         )
                         
-        # wandb.log({"Final Repertoire": wandb.Image(plt)})
+        wandb.log({"Final Repertoire": wandb.Image(plt)})
         plt.savefig(f"{_repertoire_plots_save_dir}/repertoire_final")
         plt.close()
 
