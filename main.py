@@ -321,8 +321,10 @@ def main(config: ExperimentConfig) -> None:
         )
 
     # Set up logging functions 
-    num_iterations = config.num_evaluations // (config.total_batch_size + config.algo.num_actor_active_samples)
+    evaluations_multiplier = (config.total_batch_size + config.algo.num_actor_active_samples) 
+    num_iterations = config.num_evaluations // evaluations_multiplier
     num_loops = int(num_iterations/config.metrics_log_period)
+    loops_remainder = num_iterations - num_loops * config.metrics_log_period
 
     logging.basicConfig(level=logging.DEBUG)
     logging.getLogger().handlers[0].setLevel(logging.INFO)
@@ -387,7 +389,17 @@ def main(config: ExperimentConfig) -> None:
     logger.warning("--- Initialised initial repertoire ---")
 
 
-    # Store initial repertoire metrics and convert to jnp.arrays
+    # Log initial metrics with wandb
+    evaluations_done = evaluations_multiplier
+    logged_metrics = {"evaluations": evaluations_done,  "time": initial_repertoire_time}
+
+    for key in config.algo.wandb_metrics_keys:
+        # take last value
+        logged_metrics[key] = init_metrics[key]
+
+    wandb.log(logged_metrics)
+    
+    # Create full metrics history dict
     metrics_history = init_metrics.copy()
     for k, v in metrics_history.items():
         metrics_history[k] = jnp.expand_dims(jnp.array(v), axis=0)
@@ -398,7 +410,6 @@ def main(config: ExperimentConfig) -> None:
     logger.warning("--- Max Fitnesses:" +  str(init_metrics['max_scores']))
 
     logger_header = [k for k,_ in metrics_history.items()]
-    logger_header.insert(0, "iteration")
     logger_header.append("time")
     
     mome_scan_fn = mome.scan_update
@@ -432,15 +443,15 @@ def main(config: ExperimentConfig) -> None:
 
         # log metrics
         metrics_history = {key: jnp.concatenate((metrics_history[key], metrics[key]), axis=0) for key in metrics}
-        logged_metrics = {"iteration": (iteration+ 1)*config.metrics_log_period,  "time": timelapse}
-
+        evaluations_done += config.metrics_log_period * evaluations_multiplier
+        logged_metrics = {"evaluations": evaluations_done,  "time": timelapse}
 
         for key in config.algo.wandb_metrics_keys:
             # take last value
             logged_metrics[key] = metrics[key][-1]
 
         # Print metrics
-        logger.warning(f"------ Iteration: {(iteration+1)*config.metrics_log_period} out of {num_iterations} ------")
+        logger.warning(f"------ Evaluations: {evaluations_done} out of {config.num_evaluations} ------")
         logger.warning(f"--- MOQD Score: {metrics['moqd_score'][-1]:.2f}")
         logger.warning(f"--- Coverage: {metrics['coverage'][-1]:.2f}%")
         logger.warning("--- Max Fitnesses:" +  str(metrics['max_scores'][-1]))
@@ -455,7 +466,7 @@ def main(config: ExperimentConfig) -> None:
                     metrics,
                     repertoire,
                     _repertoire_plots_save_dir,
-                    str((iteration+1)*config.metrics_log_period)
+                    str(evaluations_done)
                 )
                 
                 plt.close()
@@ -466,7 +477,28 @@ def main(config: ExperimentConfig) -> None:
             metrics_history_df = pd.DataFrame.from_dict(metrics_history,orient='index').transpose()
             metrics_history_df.to_csv(os.path.join(_metrics_dir, "metrics_history.csv"), index=False)
 
-    
+    start_time = time.time()    
+    # Do remainder loops to make sure n_evals is the same
+    (repertoire, emitter_state, running_stats, random_key,), metrics = jax.lax.scan(
+        mome_scan_fn,
+        (repertoire, emitter_state, running_stats, random_key),
+        (),
+        length=loops_remainder,
+    )
+
+    timelapse = time.time() - start_time
+    total_algorithm_duration += timelapse
+
+    # log metrics
+    evaluations_done += loops_remainder * evaluations_multiplier 
+    metrics_history = {key: jnp.concatenate((metrics_history[key], metrics[key]), axis=0) for key in metrics}
+    logged_metrics = {"Evaluations": evaluations_done,  "time": timelapse}
+
+    for key in config.algo.wandb_metrics_keys:
+        # take last value
+        logged_metrics[key] = metrics[key][-1]
+        
+
     total_duration = time.time() - init_time
 
     #Calculate minimum and maximum observed rewards
