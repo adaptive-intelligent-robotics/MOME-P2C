@@ -212,6 +212,129 @@ def plot_2d_map_elites_repertoire(
     return fig, ax
 
 
+
+def plot_3d_mome_pareto_fronts(
+    centroids: jnp.ndarray,
+    repertoire: MOMERepertoire,
+    maxval: float,
+    minval: float,
+    axes: Optional[plt.Axes] = None,
+    color_style: Optional[str] = "hsv",
+    with_global: Optional[bool] = False,
+) -> plt.Axes:
+    """Plot the pareto fronts from all cells of the mome repertoire.
+
+    Args:
+        centroids: centroids of the repertoire
+        repertoire: mome repertoire
+        maxval: maximum values for the descriptors
+        minval: minimum values for the descriptors
+        axes: matplotlib axes. Defaults to None.
+        color_style: style of the colors used. Defaults to "hsv".
+        with_global: plot the global pareto front in addition.
+            Defaults to False.
+
+    Returns:
+        Returns the axes object with the plot.
+    """
+    fitnesses = repertoire.fitnesses
+    repertoire_descriptors = repertoire.descriptors
+
+    assert fitnesses.shape[-1] == 3
+    assert repertoire_descriptors.shape[-1] == 2
+    assert color_style in ["hsv", "spectral"], "color_style must be hsv or spectral"
+
+    num_centroids = len(centroids)
+    grid_empty = jnp.any(fitnesses == -jnp.inf, axis=-1)
+
+    # Extract polar coordinates
+    if color_style == "hsv":
+        center = jnp.array([(maxval - minval) / 2] * centroids.shape[1])
+        polars = jnp.stack(
+            (
+                jnp.sqrt((jnp.sum((centroids - center) ** 2, axis=-1)))
+                / (maxval - minval)
+                / jnp.sqrt(2),
+                jnp.arctan((centroids - center)[:, 1] / (centroids - center)[:, 0]),
+            ),
+            axis=-1,
+        )
+    elif color_style == "spectral":
+        cmap = cm.get_cmap("Spectral")
+
+    if axes is None:
+        fig, axes = plt.subplots(ncols=2, figsize=(12, 6))
+        axes[0].remove()
+        axes[0] = fig.add_subplot(1, 2, 1, projection="3d")       
+    
+    for i in range(num_centroids):
+        if jnp.sum(~grid_empty[i]) > 0:
+            cell_scores = fitnesses[i][~grid_empty[i]]
+            cell = repertoire_descriptors[i][~grid_empty[i]]
+            if color_style == "hsv":
+                color = vector_to_rgb(polars[i, 1], polars[i, 0])
+            else:
+                color = cmap((centroids[i, 0] - minval) / (maxval - minval))
+            axes[0].plot(cell_scores[:, 0],
+                         cell_scores[:, 1],
+                         cell_scores[:, 2],
+                         "o", color=color)
+
+            axes[1].plot(cell[:, 0], cell[:, 1], "o", color=color)
+
+    # create the regions and vertices from centroids
+    regions, vertices = get_voronoi_finite_polygons_2d(centroids)
+
+    # fill the plot with contours
+    for region in regions:
+        polygon = vertices[region]
+        axes[1].fill(
+            *zip(*polygon), alpha=0.2, edgecolor="black", facecolor="white", lw=1
+        )
+        
+    axes[0].set_title("Fitness")
+    axes[0].set_xlabel("Objective 1", labelpad=6)
+    axes[0].set_ylabel("Objective 2", labelpad=6)
+    axes[0].set_zlabel("Objective 3", labelpad=6)
+    axes[1].set_title("Descriptor")
+    axes[1].set_xlim(minval, maxval)
+    axes[1].set_ylim(minval, maxval)
+
+    if with_global:
+        global_pareto_front, pareto_bool = repertoire.compute_global_pareto_front()
+        global_pareto_descriptors = jnp.concatenate(repertoire_descriptors)[pareto_bool]
+        axes[0].scatter(
+            global_pareto_front[:, 0],
+            global_pareto_front[:, 1],
+            global_pareto_front[:, 2],
+            marker="o",
+            edgecolors="black",
+            facecolors="none",
+            zorder=3,
+            label="Global Pareto Front",
+        )
+        sorted_index = jnp.argsort(global_pareto_front[:, 0])
+        axes[0].plot(
+            global_pareto_front[sorted_index, 0],
+            global_pareto_front[sorted_index, 1],
+            global_pareto_front[sorted_index, 2],
+            linestyle="--",
+            linewidth=2,
+            color="k",
+            zorder=3,
+        )
+        axes[1].scatter(
+            global_pareto_descriptors[:, 0],
+            global_pareto_descriptors[:, 1],
+            marker="o",
+            edgecolors="black",
+            facecolors="none",
+            zorder=3,
+            label="Global Pareto Descriptor",
+        )
+
+    return axes
+
 def plot_map_elites_results(
     env_steps: jnp.ndarray,
     metrics: Dict,

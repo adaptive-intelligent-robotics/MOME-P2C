@@ -414,7 +414,7 @@ def main(config: ExperimentConfig) -> None:
     
     mome_scan_fn = mome.scan_update
     
-    if config.env.num_descriptor_dimensions == 2 and config.env.num_objective_functions==2:
+    if config.env.num_descriptor_dimensions == 2:
         plt = plotting_function(
             config,
             centroids,
@@ -422,6 +422,7 @@ def main(config: ExperimentConfig) -> None:
             repertoire,
             _repertoire_plots_save_dir,
             "init",
+            config.env.num_objective_functions,
         )
         plt.close()
         
@@ -459,14 +460,15 @@ def main(config: ExperimentConfig) -> None:
 
         # Save plot of repertoire every plot_repertoire_period
         if (iteration+1)*config.metrics_log_period % config.plot_repertoire_period == 0:
-            if config.env.num_descriptor_dimensions == 2 and config.env.num_objective_functions==2:
+            if config.env.num_descriptor_dimensions:
                 plt = plotting_function(
                     config,
                     centroids,
                     metrics,
                     repertoire,
                     _repertoire_plots_save_dir,
-                    str(evaluations_done)
+                    str(evaluations_done),
+                    config.env.num_objective_functions,
                 )
                 
                 plt.close()
@@ -539,7 +541,7 @@ def main(config: ExperimentConfig) -> None:
     )
 
     # Save final plots
-    if config.env.num_descriptor_dimensions == 2 and config.env.num_objective_functions==2:
+    if config.env.num_descriptor_dimensions == 2:
 
         plt = plotting_function(
             config,
@@ -548,6 +550,7 @@ def main(config: ExperimentConfig) -> None:
             repertoire,
             _repertoire_plots_save_dir,
             "final",
+            config.env.num_objective_functions,
         )
                         
         wandb.log({"Final Repertoire": wandb.Image(plt)})

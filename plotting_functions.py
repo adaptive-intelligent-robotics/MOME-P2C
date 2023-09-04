@@ -8,6 +8,7 @@ from qdax.types import (
 )
 from qdax.utils.plotting import ( 
     plot_2d_map_elites_repertoire, 
+    plot_3d_mome_pareto_fronts,
     plot_mome_pareto_fronts, 
 )
 from typing import Dict
@@ -20,6 +21,7 @@ def plotting_function(
     repertoire: MapElitesRepertoire,
     save_dir: str,
     save_name: str,
+    num_objectives: int,
 ):
     
     fig = plt.figure()
@@ -40,16 +42,30 @@ def plotting_function(
     fig, axes = plt.subplots(figsize=(18, 6), ncols=3)
 
     # plot pareto fronts
-    axes = plot_mome_pareto_fronts(
-        centroids,
-        repertoire,
-        minval=config.env.min_bd,
-        maxval=config.env.max_bd,
-        color_style='spectral',
-        axes=axes,
-        with_global=True
-    )
-
+    if num_objectives == 2:
+        axes = plot_mome_pareto_fronts(
+            centroids,
+            repertoire,
+            minval=config.env.min_bd,
+            maxval=config.env.max_bd,
+            color_style='spectral',
+            axes=axes,
+            with_global=True
+        )
+    
+    elif num_objectives == 3: 
+        axes[0].remove()
+        axes[0] = fig.add_subplot(1, 3, 1, projection="3d")      
+        axes = plot_3d_mome_pareto_fronts(
+                    centroids,
+                    repertoire,
+                    minval=config.env.min_bd,
+                    maxval=config.env.max_bd,
+                    color_style='spectral',
+                    axes=axes,
+                    with_global=True
+        )
+    
     # add map elites plot on last axes
     fig, axes = plot_2d_map_elites_repertoire(
         centroids=centroids,
@@ -59,6 +75,7 @@ def plotting_function(
         ax=axes[2],
         vmax=config.env.max_hypervolume,
     )
+    plt.tight_layout()
     plt.savefig(f"{save_dir}/repertoire_{save_name}")
 
     return plt
