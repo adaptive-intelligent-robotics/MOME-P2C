@@ -23,7 +23,7 @@ class PGAMEConfig:
     
     num_objective_functions: int = 1 
     mutation_ga_batch_size: int = 128
-    mutation_qpg_batch_size: int = 64
+    mutation_qpg_batch_size: int = 128
     num_critic_training_steps: int = 300
     num_pg_training_steps: int = 100
 
@@ -57,6 +57,10 @@ class MOPGAEmitter(MultiEmitter):
 
         ga_batch_size = config.mutation_ga_batch_size
         qpg_batch_size = config.mutation_qpg_batch_size
+        
+        batch_size = config.mutation_qpg_batch_size // config.num_objective_functions
+        batch_sizes = jnp.ones(config.num_objective_functions) * batch_size
+        batch_sizes = batch_sizes.at[-1].set(config.mutation_qpg_batch_size - (config.num_objective_functions - 1) * batch_size)
 
         emitters = []
 
@@ -65,7 +69,7 @@ class MOPGAEmitter(MultiEmitter):
             qpg_config = QualityPGConfig(
                 num_objective_functions=config.num_objective_functions,
                 objective_function_index=objective_index,
-                env_batch_size=qpg_batch_size,
+                env_batch_size=int(batch_sizes.at[objective_index].get()),
                 num_critic_training_steps=config.num_critic_training_steps,
                 num_pg_training_steps=config.num_pg_training_steps,
                 replay_buffer_size=config.replay_buffer_size,
@@ -98,7 +102,6 @@ class MOPGAEmitter(MultiEmitter):
         )
 
         emitters.append(ga_emitter)
-
 
         super().__init__(emitters=tuple(emitters))
 
