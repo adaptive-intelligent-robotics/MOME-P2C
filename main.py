@@ -240,7 +240,9 @@ def main(config: ExperimentConfig) -> None:
         )
 
     if config.algo_name in preference_conditioned_algos:
-        pc_actor_layer_sizes = config.algo.pc_actor_hidden_layer_sizes + (env.action_size,)
+        qpg_emit_batch_size = config.algo.mutation_qpg_batch_size - config.algo.inject_actor_batch_size
+
+        pc_actor_layer_sizes = config.policy_hidden_layer_sizes + (env.action_size,)
         pc_actor_network = MLP(
             layer_sizes=pc_actor_layer_sizes,
             kernel_init=jax.nn.initializers.lecun_uniform(),
@@ -273,7 +275,7 @@ def main(config: ExperimentConfig) -> None:
 
         sampling_config = NaiveSamplingConfig(
             num_objectives=config.env.num_objective_functions,
-            emitter_batch_size=config.algo.mutation_qpg_batch_size,
+            emitter_batch_size=qpg_emit_batch_size,
         )
 
         if config.algo.sampler == "random":
@@ -296,7 +298,7 @@ def main(config: ExperimentConfig) -> None:
             sampling_config = HyperbolicModelConfig(
                 num_objectives=config.env.num_objective_functions,
                 reference_point=jnp.array(config.env.reference_point),
-                emitter_batch_size=config.algo.mutation_qpg_batch_size,
+                emitter_batch_size=qpg_emit_batch_size,
                 buffer_size=config.algo.hyperbolic_buffer_size,
                 num_weight_candidates=config.algo.num_weight_candidates,
                 num_neighbours=config.algo.num_neighbours,
@@ -306,7 +308,7 @@ def main(config: ExperimentConfig) -> None:
             sampler = HyperbolicPredictionGuidedSampler(
                 config=sampling_config,
             )
-
+        
         emitter = PCMOPGAEmitter(
             config=pg_emitter_config,
             policy_network=policy_network,
@@ -318,10 +320,12 @@ def main(config: ExperimentConfig) -> None:
             sampler=sampler,
             env=env,
             variation_fn=ga_variation_function,
+            inject_actor_batch_size=config.algo.inject_actor_batch_size,
+            qpg_emit_batch_size=qpg_emit_batch_size,
         )
 
     # Set up logging functions 
-    evaluations_multiplier = (config.total_batch_size + config.algo.num_actor_active_samples) 
+    evaluations_multiplier = (config.total_batch_size - config.algo.inject_actor_batch_size + config.algo.num_actor_active_samples) 
     num_iterations = config.num_evaluations // evaluations_multiplier
     num_loops = int(num_iterations/config.metrics_log_period)
     loops_remainder = num_iterations - num_loops * config.metrics_log_period

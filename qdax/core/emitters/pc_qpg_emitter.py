@@ -1,4 +1,5 @@
 import flax.linen as nn
+from flax.core.frozen_dict import freeze, unfreeze
 import jax
 import optax
 from jax import numpy as jnp
@@ -18,7 +19,8 @@ from qdax.core.neuroevolution.buffers.buffer import QDTransition, ReplayBuffer
 from qdax.core.neuroevolution.losses.td3_loss import make_pc_td3_loss_fn
 from qdax.core.neuroevolution.networks.networks import MOQModule
 from qdax.environments.base_wrappers import QDEnv
-from qdax.types import Descriptor, ExtraScores, Fitness, Genotype, Params, RNGKey
+from qdax.types import Descriptor, ExtraScores, Fitness, Genotype, Params, Preference, RNGKey
+from qdax.utils.pareto_front import uniform_preference_sampling
 
 
 @dataclass
@@ -26,9 +28,10 @@ class PCQualityPGConfig:
     """Configuration for PGAME Algorithm"""
     
     num_objective_functions: int = 1 
-    env_batch_size: int = 128
     num_critic_training_steps: int = 300
     num_pg_training_steps: int = 100
+    qpg_batch_size: int = 64
+    inject_actor_batch_size: int = 64
 
     # TD3 params
     replay_buffer_size: int = 1000000
@@ -118,7 +121,7 @@ class PCQualityPGEmitter(Emitter):
         Returns:
             the batch size emitted by the emitter.
         """
-        return self._config.env_batch_size
+        return self._config.inject_actor_batch_size + self._config.qpg_batch_size
 
     @property
     def use_all_data(self) -> bool:
@@ -230,10 +233,23 @@ class PCQualityPGEmitter(Emitter):
         )
 
         emitter_state = emitter_state.replace(sampling_state=sampling_state)
-            
+        
+        all_offspring = []
+        
         # apply the pg mutation
-        genotypes = self.emit_pg(emitter_state, parents, preferences)
-
+        pg_genotypes = self.emit_pg(emitter_state, parents, preferences)
+        all_offspring.append(pg_genotypes)
+        
+        # reshape actor for injection
+        random_key, subkey = jax.random.split(random_key)
+        actor_genotypes = self.emit_actor(emitter_state, subkey)
+        all_offspring.append(actor_genotypes)
+        
+        # concatenate offsprings together
+        genotypes = jax.tree_util.tree_map(
+            lambda *x: jnp.concatenate(x, axis=0), *all_offspring
+        )
+        
         return genotypes, emitter_state, random_key
 
     @partial(
@@ -262,6 +278,54 @@ class PCQualityPGEmitter(Emitter):
         offsprings = jax.vmap(mutation_fn)(parents, preferences)
 
         return offsprings
+    
+    
+    @partial(jax.jit, static_argnames=("self",))
+    def emit_actor(
+        self,
+        emitter_state: PCQualityPGEmitterState,
+        random_key: RNGKey,
+    )-> Genotype:
+        
+        # generate random weights
+        random_weights, _ = uniform_preference_sampling(
+            random_key = random_key,
+            batch_size = self._config.inject_actor_batch_size,
+            num_objectives = self._config.num_objective_functions,
+        )
+        
+        
+        # reshape to be same shape as repertoire genotypes
+        partial_reshape_fun = partial(self.reshape_actor_params, actor_params=emitter_state.actor_params)
+        genotypes = jax.vmap(partial_reshape_fun)(
+            random_weights
+        )    
+        
+        return genotypes
+    
+    
+    @partial(jax.jit, static_argnames=("self",))
+    def reshape_actor_params(
+        self,
+        preferences: Preference,
+        actor_params: Genotype,
+    )-> Genotype:
+        
+        # Get old kernel and bias of first layer
+        kernel = actor_params["params"]["Dense_0"]["kernel"]
+        bias = actor_params["params"]["Dense_0"]["bias"]
+        
+        # find reshape kernel and bias
+        new_kernel = kernel[:-preferences.shape[0], :]
+        new_bias = bias + jnp.dot(preferences, kernel[-preferences.shape[0]:])
+    
+        # replace kernel and bias in actor_params
+        actor_params = unfreeze(actor_params)
+        actor_params["params"]["Dense_0"]["kernel"] = new_kernel
+        actor_params["params"]["Dense_0"]["bias"] = new_bias
+        actor_params = freeze(actor_params)
+        
+        return actor_params       
 
     @partial(jax.jit, static_argnames=("self",))
     def state_update(
@@ -300,7 +364,7 @@ class PCQualityPGEmitter(Emitter):
         emitter_state = emitter_state.replace(replay_buffer=replay_buffer)
 
         # update the sampling state
-        pg_fitnesses = fitnesses.at[:self.batch_size].get()
+        pg_fitnesses = fitnesses.at[:self._config.qpg_batch_size].get()
         sampling_state = self._sampler.state_update(
             sampling_state=emitter_state.sampling_state,
             batch_new_fitnesses=pg_fitnesses,

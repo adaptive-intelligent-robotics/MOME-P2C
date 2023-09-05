@@ -9,9 +9,9 @@ mutation_ga_batch_size: 128
 mutation_qpg_batch_size: 128
 
 # Preferenced-conditioned actor hidden layer sizes
-pc_actor_hidden_layer_sizes: [256, 256] 
 num_actor_active_samples: 128
 pc_actor_uniform_preference_sampling: True
+inject_actor_batch_size: 64
 
 # Which sampling method to use for the preference conditioned policy gradient
 sampler: "one-hot"
@@ -25,6 +25,7 @@ wandb_metrics_keys: [
     "global_hypervolume",
     "total_num_solutions",
     "emitter_ga_count",
+    "emitter_actor_inject_count",  
     "emitter_pg_count",
     "pc_actor_f1_errors_correlation",
     "pc_actor_total_error",

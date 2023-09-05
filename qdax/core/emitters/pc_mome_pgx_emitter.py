@@ -30,6 +30,8 @@ class PCMOPGAEmitter(MultiEmitter):
         sampler: PreferenceSampler,
         env: QDEnv,
         variation_fn: Callable[[Params, Params, RNGKey], Tuple[Params, RNGKey]],
+        inject_actor_batch_size: int,
+        qpg_emit_batch_size: int,
     ) -> None:
 
         self._config = config
@@ -43,16 +45,19 @@ class PCMOPGAEmitter(MultiEmitter):
         self._variation_fn = variation_fn
 
         ga_batch_size = config.mutation_ga_batch_size
-        qpg_batch_size = config.mutation_qpg_batch_size
-        self._qpg_batch_size = qpg_batch_size
+        assert(config.mutation_qpg_batch_size == (inject_actor_batch_size + qpg_emit_batch_size))
+        
+        self._qpg_batch_size = qpg_emit_batch_size
+        self._inject_actor_batch_size = inject_actor_batch_size
 
         emitters = []
 
         qpg_config = PCQualityPGConfig(
             num_objective_functions=config.num_objective_functions,
-            env_batch_size=qpg_batch_size,
             num_critic_training_steps=config.num_critic_training_steps,
             num_pg_training_steps=config.num_pg_training_steps,
+            qpg_batch_size=self._qpg_batch_size,
+            inject_actor_batch_size=self._inject_actor_batch_size,
             replay_buffer_size=config.replay_buffer_size,
             critic_hidden_layer_size=config.critic_hidden_layer_size,
             critic_learning_rate=config.critic_learning_rate,
@@ -220,6 +225,7 @@ class PCMOPGAEmitter(MultiEmitter):
     ):
 
         n_pg = self._qpg_batch_size
+        n_inject = self._inject_actor_batch_size
 
         added_list = container_addition_metrics[0]
         removed_list = container_addition_metrics[1]
@@ -227,9 +233,11 @@ class PCMOPGAEmitter(MultiEmitter):
         metrics["removed_count"] = jnp.sum(removed_list)
 
         pg_added_list = added_list[:n_pg]
-        mutation_added_list = added_list[n_pg+1:]
+        inject_added_list = added_list[n_pg+1: n_pg+n_inject]
+        mutation_added_list = added_list[n_pg+n_inject+1:]
 
         metrics[f'emitter_pg_count'] = jnp.sum(pg_added_list)
+        metrics[f'emitter_actor_inject_count'] = jnp.sum(inject_added_list)
         metrics[f'emitter_ga_count'] = jnp.sum(mutation_added_list)
 
         return metrics
