@@ -14,7 +14,7 @@ from qdax.core.containers.ga_repertoire import GARepertoire
 from qdax.core.containers.mapelites_repertoire import MapElitesRepertoire
 from qdax.core.containers.mome_repertoire import MOMERepertoire
 from qdax.types import Metrics, Preference
-from qdax.utils.pareto_front import compute_hypervolume, compute_hypervolume_3d
+from qdax.utils.pareto_front import compute_hypervolume, compute_hypervolume_3d, compute_sparsity
 
 
 class CSVLogger:
@@ -128,7 +128,8 @@ def default_moqd_metrics(
     #### Calculate unnormalised hypervolume metrics
     hypervolume_function = partial(compute_hypervolume, reference_point=reference_point)
     hypervolumes = jax.vmap(hypervolume_function)(repertoire.fitnesses)  # num centroids
-
+    sparsities = jax.vmap(compute_sparsity)(repertoire.fitnesses)
+    average_sparsity = jnp.mean(repertoire_not_empty * sparsities)
     hypervolumes = jnp.where(repertoire_not_empty, hypervolumes, -jnp.inf)
     moqd_score = jnp.sum(repertoire_not_empty * hypervolumes)
     max_hypervolume = jnp.max(hypervolumes)
@@ -144,10 +145,11 @@ def default_moqd_metrics(
     global_hypervolume = compute_hypervolume(
         pareto_front, reference_point=reference_point
     )
-
+    global_sparsity = compute_sparsity(pareto_front)
     metrics = {
         "hypervolumes": hypervolumes,
         "moqd_score": moqd_score,
+        "qd_sparsity_score": average_sparsity,
         "max_hypervolume": max_hypervolume,
         "max_scores": max_scores,
         "min_scores": min_scores,
@@ -156,6 +158,7 @@ def default_moqd_metrics(
         "num_solutions": num_solutions,
         "total_num_solutions": total_num_solutions,
         "global_hypervolume": global_hypervolume,
+        "global_sparsity": global_sparsity,
     }
 
     return metrics
@@ -216,6 +219,8 @@ def moqd_metrics_3d(
     hypervolume_function = partial(compute_hypervolume_3d, reference_point=reference_point)
     hypervolumes = jax.vmap(hypervolume_function)(repertoire.fitnesses)  # num centroids
     hypervolumes = jnp.where(repertoire_not_empty, hypervolumes, -jnp.inf)
+    sparsities = jax.vmap(compute_sparsity)(repertoire.fitnesses)
+    average_sparsity = jnp.mean(repertoire_not_empty * sparsities)
     moqd_score = jnp.sum(repertoire_not_empty * hypervolumes)
     max_hypervolume = jnp.max(hypervolumes)
 
@@ -230,10 +235,13 @@ def moqd_metrics_3d(
     global_hypervolume = compute_hypervolume_3d(
         pareto_front, reference_point=reference_point
     )
+    
+    global_sparsity = compute_sparsity(pareto_front)
 
     metrics = {
         "hypervolumes": hypervolumes,
         "moqd_score": moqd_score,
+        "qd_sparsity_score": average_sparsity,
         "max_hypervolume": max_hypervolume,
         "max_scores": max_scores,
         "min_scores": min_scores,
@@ -242,6 +250,7 @@ def moqd_metrics_3d(
         "num_solutions": num_solutions,
         "total_num_solutions": total_num_solutions,
         "global_hypervolume": global_hypervolume,
+        "global_sparsity": global_sparsity,
     }
 
     return metrics

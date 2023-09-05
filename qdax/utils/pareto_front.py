@@ -167,7 +167,35 @@ def compute_hypervolume_3d(
 
     return hv
 
-
+def compute_sparsity(
+    pareto_front: jnp.ndarray,
+)-> float:
+    
+    # sort by first objective
+    num_objectives = pareto_front.shape[-1]
+    len_front = jnp.sum(pareto_front != -jnp.inf)/num_objectives
+    
+    # compute sparsity for front with more than one solution
+    def true_fun(pareto_front, num_objectives, len_front):
+        sparsity = 0.0
+        for objective in range(num_objectives):
+            sorted_vals = jnp.sort(pareto_front.at[:, objective].get())
+            rolled_vals =  jnp.roll(sorted_vals, -1)
+            squared_diffs = jnp.square(rolled_vals - sorted_vals)
+            mask = squared_diffs != jnp.inf
+            sparsity += jnp.nansum(squared_diffs * mask)
+        
+        sparsity /= len_front - 1
+    
+        return sparsity
+    
+    # handle the case where there is only one solution on the front
+    def false_fun(pareto_front):
+        return 0.0
+    
+    partial_true_fun = partial(true_fun, num_objectives=num_objectives, len_front=len_front)
+    
+    return jax.lax.cond(len_front>1, partial_true_fun, false_fun, pareto_front)
 
 @partial(jax.jit, static_argnames=("batch_size", "num_objectives"))
 def uniform_preference_sampling(

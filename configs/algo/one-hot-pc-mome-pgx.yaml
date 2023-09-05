@@ -19,10 +19,12 @@ sampler: "one-hot"
 # WandB Log Metrics
 wandb_metrics_keys: [
     "moqd_score",
+    "qd_sparsity_score",
     "max_hypervolume",
     "max_sum_scores",
     "coverage",
     "global_hypervolume",
+    "global_sparsity",
     "total_num_solutions",
     "emitter_ga_count",
     "emitter_actor_inject_count",  
