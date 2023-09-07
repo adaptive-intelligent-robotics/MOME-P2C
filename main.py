@@ -464,7 +464,7 @@ def main(config: ExperimentConfig) -> None:
 
         # Save plot of repertoire every plot_repertoire_period
         if (iteration+1)*config.metrics_log_period % config.plot_repertoire_period == 0:
-            if config.env.num_descriptor_dimensions:
+            if config.env.num_descriptor_dimensions == 2:
                 plt = plotting_function(
                     config,
                     centroids,
@@ -499,11 +499,6 @@ def main(config: ExperimentConfig) -> None:
     evaluations_done += loops_remainder * evaluations_multiplier 
     metrics_history = {key: jnp.concatenate((metrics_history[key], metrics[key]), axis=0) for key in metrics}
     logged_metrics = {"Evaluations": evaluations_done,  "time": timelapse}
-
-    for key in config.algo.wandb_metrics_keys:
-        # take last value
-        logged_metrics[key] = metrics[key][-1]
-        
 
     total_duration = time.time() - init_time
 
