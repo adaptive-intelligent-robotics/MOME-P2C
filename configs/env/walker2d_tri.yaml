@@ -8,7 +8,8 @@ min_bd: 0.
 max_bd: 1.
 
 # Min and Max values of fitnesses for reference points
-reference_point: [-210, -210, -15]
+# Empically observed min rewards: [-298.272, -68.594055, -5.880747]
+reference_point: [-400, -100, -15]
 
 # Min and Max values for rewards for normalisation
 min_rewards: [-6, -6, -0.0065]

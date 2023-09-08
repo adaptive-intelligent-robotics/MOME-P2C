@@ -8,7 +8,8 @@ min_bd: 0.
 max_bd: 1.
 
 # Min and Max values of rewards for reference points
-reference_point: [-350, -350, -4500]
+# Empirically observed min rewards: [-552.51917, -615.8024, -3916.36]
+reference_point: [-750, -750, -4500]
 
 # Min and Max values for rewards for normalisation
 min_rewards: [-7, -7, -4.5]
