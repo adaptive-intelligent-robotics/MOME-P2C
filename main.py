@@ -355,7 +355,6 @@ def main(config: ExperimentConfig) -> None:
     evaluations_multiplier = (config.total_batch_size - config.algo.inject_actor_batch_size + config.algo.num_actor_active_samples) 
     num_iterations = config.num_evaluations // evaluations_multiplier
     num_loops = int(num_iterations/config.metrics_log_period)
-    loops_remainder = num_iterations - num_loops * config.metrics_log_period
 
     logging.basicConfig(level=logging.DEBUG)
     logging.getLogger().handlers[0].setLevel(logging.INFO)
@@ -509,23 +508,6 @@ def main(config: ExperimentConfig) -> None:
             repertoire.save(path=_repertoire_dir)
             metrics_history_df = pd.DataFrame.from_dict(metrics_history,orient='index').transpose()
             metrics_history_df.to_csv(os.path.join(_metrics_dir, "metrics_history.csv"), index=False)
-
-    start_time = time.time()    
-    # Do remainder loops to make sure n_evals is the same
-    (repertoire, emitter_state, running_stats, random_key,), metrics = jax.lax.scan(
-        mome_scan_fn,
-        (repertoire, emitter_state, running_stats, random_key),
-        (),
-        length=loops_remainder,
-    )
-
-    timelapse = time.time() - start_time
-    total_algorithm_duration += timelapse
-
-    # log metrics
-    evaluations_done += loops_remainder * evaluations_multiplier 
-    metrics_history = {key: jnp.concatenate((metrics_history[key], metrics[key]), axis=0) for key in metrics}
-    logged_metrics = {"Evaluations": evaluations_done,  "time": timelapse}
 
     total_duration = time.time() - init_time
 

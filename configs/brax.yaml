@@ -48,9 +48,9 @@ num_critic_training_steps: 300
 num_pg_training_steps: 100 
 
 # Logging parameters
-metrics_log_period: 50
-plot_repertoire_period: 500
-checkpoint_period: 500
+metrics_log_period: 40
+plot_repertoire_period: 400
+checkpoint_period: 400
 num_save_visualisations: 5
 
 # Common metrics to log

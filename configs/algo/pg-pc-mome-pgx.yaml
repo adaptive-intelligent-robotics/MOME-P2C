@@ -9,7 +9,7 @@ mutation_ga_batch_size: 128
 mutation_qpg_batch_size: 128
 
 # Preferenced-conditioned actor hidden layer sizes
-num_actor_active_samples: 128
+num_actor_active_samples: 64
 pc_actor_uniform_preference_sampling: True
 inject_actor_batch_size: 64
 
