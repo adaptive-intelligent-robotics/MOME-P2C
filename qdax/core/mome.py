@@ -58,6 +58,7 @@ class MOME:
         pareto_front_max_length: int,
         random_key: RNGKey,
         num_objective_functions: int=2,
+        epsilon: float=1e-8,
     ) -> Tuple[MOMERepertoire, Optional[EmitterState], RNGKey]:
         """Initialize a MOME grid with an initial population of genotypes. Requires
         the definition of centroids that can be computed with any method such as
@@ -75,7 +76,7 @@ class MOME:
         """
         running_reward_mean = jnp.zeros(num_objective_functions, dtype=jnp.float32)
         running_reward_var = jnp.zeros(num_objective_functions, dtype=jnp.float32)
-        running_reward_count = 0
+        running_reward_count = epsilon
 
         # first score
         fitnesses, descriptors, preferences, extra_scores, random_key = self._scoring_function(
@@ -187,8 +188,12 @@ class MOME:
         # store empirically observed min and max rewards
         metrics["min_rewards"] = extra_scores["min_rewards"]
         metrics["max_rewards"] = extra_scores["max_rewards"]
-        metrics["running_reward_mean"] = running_reward_mean
-        metrics["running_reward_var"] = running_reward_var
+
+        # Store running reward statistics
+        num_rewards = running_reward_mean.shape[0]
+        for m in range(num_rewards):
+            metrics[f"running_reward_mean_{m+1}"] = running_reward_mean[m]
+            metrics[f"running_reward_var_{m+1}"] = running_reward_var[m]
         metrics["running_reward_count"] = running_reward_count
         
         metrics = {**metrics, **pc_actor_metrics}
@@ -286,11 +291,17 @@ class MOME:
         # store empirically observed min and max rewards
         metrics["min_rewards"] = extra_scores["min_rewards"]
         metrics["max_rewards"] = extra_scores["max_rewards"]
-        metrics["running_reward_mean"] = running_reward_mean
-        metrics["running_reward_var"] = running_reward_var
+
+        # Store running reward statistics
+        num_rewards = running_reward_mean.shape[0]
+        for m in range(num_rewards):
+            metrics[f"running_reward_mean_{m+1}"] = running_reward_mean[m]
+            metrics[f"running_reward_var_{m+1}"] = running_reward_var[m]
         metrics["running_reward_count"] = running_reward_count
-        
+
         metrics = {**metrics, **pc_actor_metrics}
+
+        running_stats = (running_reward_mean, running_reward_var, running_reward_count)
 
         return repertoire, emitter_state, metrics, running_stats, random_key
 

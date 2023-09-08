@@ -258,7 +258,7 @@ def scoring_function(
         # calculate mean and batch size of rewards
         nan_rewards = jnp.where(fitnesses_mask, jnp.nan, data.rewards)
         all_rewards = jnp.concatenate(nan_rewards, axis=0)
-        rewards_batch_count = jnp.sum(mask)
+        rewards_batch_count = jnp.sum(1.0 - mask)
         rewards_batch_mean = jnp.nanmean(all_rewards, axis=0)
         rewards_batch_var = jnp.nanvar(all_rewards, axis=0)
         
@@ -404,7 +404,7 @@ def preference_conditioned_scoring_function(
         # calculate mean and batch size of rewards
         nan_rewards = jnp.where(fitnesses_mask, jnp.nan, data.rewards)
         all_rewards = jnp.concatenate(nan_rewards, axis=0)
-        rewards_batch_count = jnp.sum(mask)
+        rewards_batch_count = jnp.sum(1.0 - mask)
         rewards_batch_mean = jnp.nanmean(all_rewards, axis=0)
         rewards_batch_var = jnp.nanvar(all_rewards, axis=0)
         
