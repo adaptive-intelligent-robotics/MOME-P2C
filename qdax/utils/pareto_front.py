@@ -175,6 +175,12 @@ def compute_sparsity(
     num_objectives = pareto_front.shape[-1]
     len_front = jnp.sum(pareto_front != -jnp.inf)/num_objectives
     
+    # scale pareto front so sparsity is not affected by scale
+    mask = pareto_front != -jnp.inf
+    max_vals = jnp.nanmax(pareto_front*mask, axis=0)
+    min_vals = jnp.nanmin(pareto_front*mask, axis=0)
+    scaled_front = pareto_front/(max_vals - min_vals)
+    
     # compute sparsity for front with more than one solution
     def true_fun(pareto_front, num_objectives, len_front):
         sparsity = 0.0
@@ -195,7 +201,7 @@ def compute_sparsity(
     
     partial_true_fun = partial(true_fun, num_objectives=num_objectives, len_front=len_front)
     
-    return jax.lax.cond(len_front>1, partial_true_fun, false_fun, pareto_front)
+    return jax.lax.cond(len_front>1, partial_true_fun, false_fun, scaled_front)
 
 @partial(jax.jit, static_argnames=("batch_size", "num_objectives"))
 def uniform_preference_sampling(
