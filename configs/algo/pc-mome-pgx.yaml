@@ -15,21 +15,3 @@ inject_actor_batch_size: 64
 
 # Which sampling method to use for the preference conditioned policy gradient
 sampler: "keep"
-
-
-# WandB Log Metrics
-wandb_metrics_keys: [
-    "moqd_score",
-    "qd_sparsity_score",
-    "max_hypervolume",
-    "max_sum_scores",
-    "coverage",
-    "global_hypervolume",
-    "global_sparsity",
-    "total_num_solutions",
-    "emitter_ga_count",
-    "emitter_actor_inject_count",  
-    "emitter_pg_count",
-    "pc_actor_f1_errors_correlation",
-    "pc_actor_total_error",
-]

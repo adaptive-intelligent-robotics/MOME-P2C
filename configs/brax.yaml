@@ -17,7 +17,7 @@ pareto_front_max_length: 50
 # Initialisation parameters
 num_evaluations: 1024000
 num_init_cvt_samples: 50000 
-num_centroids: 1024 
+num_centroids: 128 
 
 # Policy parameters 
 policy_hidden_layer_sizes: [64, 64] 
@@ -52,3 +52,16 @@ metrics_log_period: 50
 plot_repertoire_period: 500
 checkpoint_period: 500
 num_save_visualisations: 5
+
+# Common metrics to log
+wandb_metrics_keys: [
+    "moqd_score",
+    "qd_sparsity_score",
+    "max_hypervolume",
+    "max_sum_scores",
+    "coverage",
+    "global_hypervolume",
+    "global_sparsity",
+    "total_num_solutions",
+    "running_reward_count",
+]

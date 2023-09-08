@@ -93,6 +93,8 @@ class ExperimentConfig:
     plot_repertoire_period: int
     checkpoint_period: int
     num_save_visualisations: int
+    
+    metrics_list: Tuple[str,...]
 
 
 
@@ -166,6 +168,13 @@ def main(config: ExperimentConfig) -> None:
             reference_point=jnp.array(reference_point),
         )
 
+    metrics_list = config.wandb_metrics_keys
+    if config.env.standardise_rewards:
+          for obj_num in range(config.env.num_objective_functions):
+            metrics_list.append(f"running_reward_mean_{obj_num+1}")
+            metrics_list.append(f"running_reward_var_{obj_num+1}")
+
+
     # Prepare the scoring function
     bd_extraction_fn = environments.behavior_descriptor_extractor[config.env_name]
     scoring_fn = partial(
@@ -231,7 +240,14 @@ def main(config: ExperimentConfig) -> None:
         )
 
     if config.algo_name == "mome-pgx":
-
+        
+        extra_log_metrics = ["emitter_ga_count"]
+        
+        for obj_num in range(config.env.num_objective_functions):
+            extra_log_metrics.append(f"emitter_f{obj_num+1}_count")
+        
+        metrics_list += extra_log_metrics     
+        
         emitter = MOPGAEmitter(
             config=pg_emitter_config,
             policy_network=policy_network,
@@ -241,6 +257,17 @@ def main(config: ExperimentConfig) -> None:
 
     if config.algo_name in preference_conditioned_algos:
         qpg_emit_batch_size = config.algo.mutation_qpg_batch_size - config.algo.inject_actor_batch_size
+        
+        extra_log_metrics = ["emitter_ga_count",
+                             "emitter_actor_inject_count",
+                             "emitter_pg_count",
+                             "pc_actor_total_error"
+        ]
+
+        metrics_list += extra_log_metrics     
+
+        for obj_num in range(config.env.num_objective_functions):
+            extra_log_metrics.append(f"pc_actor_f{obj_num}_errors_correlation")         
 
         pc_actor_layer_sizes = config.policy_hidden_layer_sizes + (env.action_size,)
         pc_actor_network = MLP(
@@ -397,7 +424,7 @@ def main(config: ExperimentConfig) -> None:
     evaluations_done = evaluations_multiplier
     logged_metrics = {"evaluations": evaluations_done,  "time": initial_repertoire_time}
 
-    for key in config.algo.wandb_metrics_keys:
+    for key in metrics_list:
         # take last value
         logged_metrics[key] = init_metrics[key]
 
@@ -451,7 +478,7 @@ def main(config: ExperimentConfig) -> None:
         evaluations_done += config.metrics_log_period * evaluations_multiplier
         logged_metrics = {"evaluations": evaluations_done,  "time": timelapse}
 
-        for key in config.algo.wandb_metrics_keys:
+        for key in metrics_list:
             # take last value
             logged_metrics[key] = metrics[key][-1]
 

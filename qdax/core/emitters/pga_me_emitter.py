@@ -3,6 +3,7 @@ from typing import Callable, Tuple
 
 import flax.linen as nn
 from functools import partial
+from typing import List
 import jax
 import jax.numpy as jnp
 
@@ -13,7 +14,7 @@ from qdax.core.emitters.pc_qpg_emitter import PCQualityPGConfig, PCQualityPGEmit
 from qdax.core.emitters.qpg_emitter import QualityPGConfig, QualityPGEmitter, QualityPGEmitterState
 from qdax.core.emitters.standard_emitters import MixingEmitter
 from qdax.environments.base_wrappers import QDEnv
-from qdax.types import Descriptor, ExtraScores, Genotype, Fitness, Params, Preference, RNGKey
+from qdax.types import Descriptor, ExtraScores, Genotype, Fitness, Metrics, Params, Preference, RNGKey
 from qdax.utils.pareto_front import uniform_preference_sampling
 
 
@@ -105,6 +106,35 @@ class MOPGAEmitter(MultiEmitter):
 
         super().__init__(emitters=tuple(emitters))
 
+    @partial(jax.jit, static_argnames=("self",))   
+    def update_added_counts(
+        self,
+        container_addition_metrics: List,
+        metrics: Metrics,
+    ):
+
+        added_list = container_addition_metrics[0]
+        removed_list = container_addition_metrics[1]
+
+        metrics["removed_count"] = jnp.sum(removed_list)
+
+        for obj_fun in range(self._config.num_objective_functions):
+
+            emitter_added_list = added_list[
+                self.indexes_start_batches[obj_fun]
+                :self.indexes_end_batches[obj_fun]
+            ]
+
+            metrics[f'emitter_f{obj_fun+1}_count'] = jnp.sum(emitter_added_list)
+        
+        ga_emitter_added_list = added_list[
+            self.indexes_start_batches[-1]
+            :self.indexes_end_batches[-1]
+        ]
+        
+        metrics["emitter_ga_count"] = jnp.sum(ga_emitter_added_list)
+        
+        return metrics
 
 class PGAMEEmitter(MultiEmitter):
     def __init__(

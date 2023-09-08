@@ -9,18 +9,3 @@ mutation_ga_batch_size: 128
 mutation_qpg_batch_size: 128
 inject_actor_batch_size: 0
 num_actor_active_samples: 0
-
-# WandB Log Metrics
-wandb_metrics_keys: [
-    "moqd_score",
-    "qd_sparsity_score",
-    "max_hypervolume",
-    "max_sum_scores",
-    "coverage",
-    "global_hypervolume",
-    "global_sparsity",
-    "total_num_solutions",
-    "emitter_1_count",
-    "emitter_2_count",
-    "emitter_3_count",
-]
