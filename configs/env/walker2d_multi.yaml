@@ -11,6 +11,7 @@ max_bd: 1.
 # Empirical min: [-205.34937, -5.514009]
 # Emprical max: [2186.4878, -1.3155421e-05]
 reference_point: [-210, -15]
+max_fitnesses: [2400, 0]
 
 # Min and Max values for rewards for normalisation
 # Empirical min: [-5.0035563, -0.006]

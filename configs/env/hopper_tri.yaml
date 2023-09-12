@@ -8,16 +8,18 @@ min_bd: 0.
 max_bd: 1.
 
 # Min and Max values of rewards for reference points
-# Emprirically observed min rewards: [-470.57428, -2.5746589, 0]
-reference_point: [-500, -3, 0]
+# Emprirically observed min rewards: [-579.1034, -2.5746589, 0]
+# Emprirically observed max rewards: [1073.33716, -6.6003e-06, 1462.23901]
+reference_point: [-750, -3, 0]
+max_fitnesses: [1500, 0, 1750]
 
 # Min and Max values of rewards for reference points
 
 min_rewards: [-5, -0.0035, -1]
 max_rewards: [8, 0, 10]
 
-# Empirical Maximum Hypervolume for the environment: 1891.3987
-max_hypervolume: 25000.0
+# Empirical Maximum Hypervolume for the environment: 5470666
+max_hypervolume: 6000000.0
 
 # Normalisation/Standardisation of rewards
 standardise_rewards: True

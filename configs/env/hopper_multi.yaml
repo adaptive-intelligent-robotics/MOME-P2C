@@ -8,9 +8,10 @@ min_bd: 0.
 max_bd: 1.
 
 # Min and Max values of rewards for reference points
-# Empirical min: [-35.17073, -1.3313142]
-# Empirical max: [537.24084, -2.264291e-06]
-reference_point: [-50, -2]
+# Empirical min: [-35.17073, -2.3517342]
+# Empirical max: [825.2477, -1.8515066-06]
+reference_point: [-50, -3]
+max_fitnesses: [1000, 0]
 
 # Min and Max values of rewards for reference points
 # Empirical min: [-3.792442, -0.003]
