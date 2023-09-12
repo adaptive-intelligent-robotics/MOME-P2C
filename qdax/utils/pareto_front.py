@@ -169,6 +169,8 @@ def compute_hypervolume_3d(
 
 def compute_sparsity(
     pareto_front: jnp.ndarray,
+    min_fitnesses: jnp.ndarray,
+    max_fitnesses: jnp.ndarray,
 )-> float:
     
     # sort by first objective
@@ -176,10 +178,7 @@ def compute_sparsity(
     len_front = jnp.sum(pareto_front != -jnp.inf)/num_objectives
     
     # scale pareto front so sparsity is not affected by scale
-    mask = pareto_front != -jnp.inf
-    max_vals = jnp.nanmax(pareto_front*mask, axis=0)
-    min_vals = jnp.nanmin(pareto_front*mask, axis=0)
-    scaled_front = pareto_front/(max_vals - min_vals)
+    scaled_front = pareto_front/(max_fitnesses - min_fitnesses)
     
     # compute sparsity for front with more than one solution
     def true_fun(pareto_front, num_objectives, len_front):

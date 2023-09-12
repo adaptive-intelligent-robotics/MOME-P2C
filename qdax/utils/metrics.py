@@ -104,6 +104,8 @@ def default_qd_metrics(repertoire: MapElitesRepertoire, qd_offset: float) -> Met
 def default_moqd_metrics(
     repertoire: MOMERepertoire, 
     reference_point: jnp.ndarray,
+    min_fitnesses: jnp.ndarray,
+    max_fitnesses: jnp.ndarray,
 ) -> Metrics:
     """Compute the MOQD metric given a MOME repertoire and a reference point.
 
@@ -128,7 +130,8 @@ def default_moqd_metrics(
     #### Calculate unnormalised hypervolume metrics
     hypervolume_function = partial(compute_hypervolume, reference_point=reference_point)
     hypervolumes = jax.vmap(hypervolume_function)(repertoire.fitnesses)  # num centroids
-    sparsities = jax.vmap(compute_sparsity)(repertoire.fitnesses)
+    sparsity_function = partial(compute_sparsity, min_fitnesses=min_fitnesses, max_fitnesses=max_fitnesses)
+    sparsities = jax.vmap(sparsity_function)(repertoire.fitnesses)
     average_sparsity = jnp.mean(repertoire_not_empty * sparsities)
     hypervolumes = jnp.where(repertoire_not_empty, hypervolumes, -jnp.inf)
     moqd_score = jnp.sum(repertoire_not_empty * hypervolumes)
@@ -145,7 +148,7 @@ def default_moqd_metrics(
     global_hypervolume = compute_hypervolume(
         pareto_front, reference_point=reference_point
     )
-    global_sparsity = compute_sparsity(pareto_front)
+    global_sparsity = sparsity_function(pareto_front)
     metrics = {
         "hypervolumes": hypervolumes,
         "moqd_score": moqd_score,
@@ -195,6 +198,8 @@ def pc_actor_metrics(
 def moqd_metrics_3d(
     repertoire: MOMERepertoire, 
     reference_point: jnp.ndarray,
+    min_fitnesses: jnp.ndarray,
+    max_fitnesses: jnp.ndarray,
 ) -> Metrics:
     """Compute the MOQD metric given a MOME repertoire and a reference point.
 
@@ -220,7 +225,8 @@ def moqd_metrics_3d(
     hypervolume_function = partial(compute_hypervolume_3d, reference_point=reference_point)
     hypervolumes = jax.vmap(hypervolume_function)(repertoire.fitnesses)  # num centroids
     hypervolumes = jnp.where(repertoire_not_empty, hypervolumes, -jnp.inf)
-    sparsities = jax.vmap(compute_sparsity)(repertoire.fitnesses)
+    sparsity_function = partial(compute_sparsity, min_fitnesses=min_fitnesses, max_fitnesses=max_fitnesses)
+    sparsities = jax.vmap(sparsity_function)(repertoire.fitnesses)
     average_sparsity = jnp.mean(repertoire_not_empty * sparsities)
     moqd_score = jnp.sum(repertoire_not_empty * hypervolumes)
     max_hypervolume = jnp.max(hypervolumes)
@@ -237,7 +243,7 @@ def moqd_metrics_3d(
         pareto_front, reference_point=reference_point
     )
     
-    global_sparsity = compute_sparsity(pareto_front)
+    global_sparsity = sparsity_function(pareto_front)
 
     metrics = {
         "hypervolumes": hypervolumes,

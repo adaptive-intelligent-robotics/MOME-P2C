@@ -161,11 +161,15 @@ def main(config: ExperimentConfig) -> None:
         metrics_fn = partial(
             default_moqd_metrics,
             reference_point=jnp.array(reference_point),
+            min_fitnesses=jnp.array(config.env.reference_point),
+            max_fitnesses=jnp.array(config.env.max_fitnesses),
         )
     else:
         metrics_fn = partial(
             moqd_metrics_3d,
             reference_point=jnp.array(reference_point),
+            min_fitnesses=jnp.array(config.env.reference_point),
+            max_fitnesses=jnp.array(config.env.max_fitnesses),
         )
 
     metrics_list = config.wandb_metrics_keys
