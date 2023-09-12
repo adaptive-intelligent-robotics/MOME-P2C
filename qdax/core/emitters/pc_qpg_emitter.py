@@ -6,7 +6,7 @@ from jax import numpy as jnp
 
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 from qdax.core.emitters.emitter import EmitterState
 from qdax.core.emitters.preference_sampling.preference_sampler import (
@@ -14,6 +14,7 @@ from qdax.core.emitters.preference_sampling.preference_sampler import (
     PreferenceSamplingState,
 )
 from qdax.core.containers.repertoire import Repertoire
+from qdax.core.containers.mome_repertoire import MOMERepertoire
 from qdax.core.emitters.emitter import Emitter
 from qdax.core.neuroevolution.buffers.buffer import QDTransition, ReplayBuffer
 from qdax.core.neuroevolution.losses.td3_loss import make_pc_td3_loss_fn
@@ -74,6 +75,7 @@ class PCQualityPGEmitter(Emitter):
         config: PCQualityPGConfig,
         policy_network: nn.Module,
         pc_actor_network: nn.Module,
+        pc_actor_preferences_sample_fn:  Callable[[MOMERepertoire, RNGKey], jnp.ndarray],
         sampler: PreferenceSampler,
         env: QDEnv,
     ) -> None:
@@ -81,6 +83,7 @@ class PCQualityPGEmitter(Emitter):
         self._env = env
         self._policy_network = policy_network
         self._pc_actor_network = pc_actor_network
+        self._pc_actor_preferences_sample_fn = pc_actor_preferences_sample_fn
 
         # Init Critics
         pc_critic_network = MOQModule(
@@ -288,10 +291,8 @@ class PCQualityPGEmitter(Emitter):
     )-> Genotype:
         
         # generate random weights
-        random_weights, _ = uniform_preference_sampling(
+        random_weights, _ = self._pc_actor_preferences_sample_fn(
             random_key = random_key,
-            batch_size = self._config.inject_actor_batch_size,
-            num_objectives = self._config.num_objective_functions,
         )
         
         
