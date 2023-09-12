@@ -189,7 +189,7 @@ def pc_actor_metrics(
         error = errors[:,obj]
         preference = sampled_preferences[:,obj]
         correlation = jnp.corrcoef(error, preference)[0,1]
-        pc_actor_metrics[f"pc_actor_f{obj}_errors_correlation"] = correlation
+        pc_actor_metrics[f"pc_actor_f{obj+1}_errors_correlation"] = correlation
         
     
     return pc_actor_metrics

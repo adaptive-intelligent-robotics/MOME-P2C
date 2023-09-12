@@ -268,10 +268,10 @@ def main(config: ExperimentConfig) -> None:
                              "pc_actor_total_error"
         ]
 
-        metrics_list += extra_log_metrics     
-
         for obj_num in range(config.env.num_objective_functions):
-            extra_log_metrics.append(f"pc_actor_f{obj_num}_errors_correlation")         
+            extra_log_metrics.append(f"pc_actor_f{obj_num+1}_errors_correlation")         
+
+        metrics_list += extra_log_metrics     
 
         pc_actor_layer_sizes = config.policy_hidden_layer_sizes + (env.action_size,)
         pc_actor_network = MLP(
