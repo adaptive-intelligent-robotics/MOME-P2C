@@ -36,7 +36,7 @@ from qdax.core.emitters.mutation_operators import (
 )
 
 from qdax.utils.metrics import default_moqd_metrics, moqd_metrics_3d, pc_actor_metrics
-from qdax.utils.pareto_front import uniform_preference_sampling
+from qdax.utils.pareto_front import uniform_preference_sampling, uniform_and_one_hot_sampling
 
 
 preference_conditioned_algos = [
@@ -291,18 +291,23 @@ def main(config: ExperimentConfig) -> None:
                 batch_size=config.algo.num_actor_active_samples,
                 num_objectives=config.env.num_objective_functions
             )
-
-            preference_conditioned_scoring_fn = partial(preference_conditioned_scoring_function,
-                init_states=actor_init_states,
-                episode_length=config.episode_length,
-                pc_play_step_fn=play_pc_mo_step_function,
-                behavior_descriptor_extractor=bd_extraction_fn,
-                num_objective_functions=config.env.num_objective_functions,
-                normalise_rewards=config.env.normalise_rewards,
-                standardise_rewards=config.env.standardise_rewards,
-                min_rewards=jnp.array(config.env.min_rewards),
-                max_rewards=jnp.array(config.env.max_rewards),
+        else:
+            actor_sampling_fn = partial(uniform_and_one_hot_sampling,
+                batch_size=config.algo.num_actor_active_samples,
+                num_objectives=config.env.num_objective_functions
             )
+            
+        preference_conditioned_scoring_fn = partial(preference_conditioned_scoring_function,
+            init_states=actor_init_states,
+            episode_length=config.episode_length,
+            pc_play_step_fn=play_pc_mo_step_function,
+            behavior_descriptor_extractor=bd_extraction_fn,
+            num_objective_functions=config.env.num_objective_functions,
+            normalise_rewards=config.env.normalise_rewards,
+            standardise_rewards=config.env.standardise_rewards,
+            min_rewards=jnp.array(config.env.min_rewards),
+            max_rewards=jnp.array(config.env.max_rewards),
+        )
 
         sampling_config = NaiveSamplingConfig(
             num_objectives=config.env.num_objective_functions,

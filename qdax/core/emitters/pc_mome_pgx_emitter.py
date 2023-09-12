@@ -77,6 +77,7 @@ class PCMOPGAEmitter(MultiEmitter):
             config=qpg_config,
             policy_network=policy_network,
             pc_actor_network=pc_actor_network,
+            pc_actor_preferences_sample_fn=pc_actor_preferences_sample_fn,
             sampler=sampler,
             env=env
         )
