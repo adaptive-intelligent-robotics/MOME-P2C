@@ -607,6 +607,81 @@ def plot_mome_pareto_fronts(
     return axes
 
 
+def plot_2d_pareto_front(
+    repertoire: MOMERepertoire,
+    axes: Optional[plt.Axes] = None,
+):   
+    
+    axes.set_title("Global Pareto Front")
+    axes.set_title("Descriptor")
+    axes.set_xlabel("Objective 1", labelpad=6)
+    axes.set_ylabel("Objective 2", labelpad=6)
+    
+    global_pareto_front, _ = repertoire.compute_global_pareto_front()
+    
+    axes.scatter(
+        global_pareto_front[:, 0],
+        global_pareto_front[:, 1],
+        marker="o",
+        edgecolors="black",
+        facecolors="none",
+        zorder=3,
+        label="Global Pareto Front",
+    )
+    
+    sorted_index = jnp.argsort(global_pareto_front[:, 0])
+    
+    axes.plot(
+        global_pareto_front[sorted_index, 0],
+        global_pareto_front[sorted_index, 1],
+        linestyle="--",
+        linewidth=2,
+        color="k",
+        zorder=3,
+    )
+        
+    return axes
+
+
+def plot_3d_pareto_front(
+    repertoire: MOMERepertoire,
+    axes: Optional[plt.Axes] = None,
+):
+    
+    axes.set_title("Global Pareto Front")
+    axes.set_title("Descriptor")
+    axes.set_xlabel("Objective 1", labelpad=6)
+    axes.set_ylabel("Objective 2", labelpad=6)
+    axes.set_zlabel("Objective 3", labelpad=6)
+    
+    global_pareto_front, _ = repertoire.compute_global_pareto_front()
+    
+    axes.scatter(
+        global_pareto_front[:, 0],
+        global_pareto_front[:, 1],
+        global_pareto_front[:, 2],
+        marker="o",
+        edgecolors="black",
+        facecolors="none",
+        zorder=3,
+        label="Global Pareto Front",
+    )
+    
+    sorted_index = jnp.argsort(global_pareto_front[:, 0])
+    
+    axes.plot(
+        global_pareto_front[sorted_index, 0],
+        global_pareto_front[sorted_index, 1],
+        global_pareto_front[sorted_index, 2],
+        linestyle="--",
+        linewidth=2,
+        color="k",
+        zorder=3,
+    )
+
+    return axes
+
+
 def vector_to_rgb(angle: float, absolute: float) -> Any:
     """Returns a color based on polar coordinates.
 

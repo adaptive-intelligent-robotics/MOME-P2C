@@ -10,6 +10,8 @@ from qdax.utils.plotting import (
     plot_2d_map_elites_repertoire, 
     plot_3d_mome_pareto_fronts,
     plot_mome_pareto_fronts, 
+    plot_2d_pareto_front,
+    plot_3d_pareto_front,
 )
 from typing import Dict
 
@@ -80,3 +82,33 @@ def plotting_function(
 
     return plt
 
+
+
+def pf_plotting_function(
+    repertoire: MapElitesRepertoire,
+    save_dir: str,
+    save_name: str,
+    num_objectives: int,
+):
+  
+    if num_objectives==2:
+        fig = plt.figure()
+        axes = fig.add_subplot(111) 
+    
+        axes = plot_2d_pareto_front(
+            repertoire=repertoire,
+            axes=axes
+        )
+    elif num_objectives==3:
+        fig = plt.figure()
+        axes = fig.add_subplot(111, projection="3d") 
+    
+        axes = plot_3d_pareto_front(
+            repertoire=repertoire,
+            axes=axes
+        )
+    
+    plt.tight_layout()
+    plt.savefig(f"{save_dir}/pf_{save_name}")
+    
+    return plt

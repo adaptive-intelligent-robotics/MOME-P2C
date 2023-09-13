@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Tuple
 from omegaconf import OmegaConf
-from plotting_functions import plotting_function
+from plotting_functions import plotting_function, pf_plotting_function
 from qdax import environments
 from qdax.core.containers.mapelites_repertoire import compute_cvt_centroids
 from qdax.core.emitters.pga_me_emitter import PGAMEConfig, MOPGAEmitter
@@ -464,6 +464,14 @@ def main(config: ExperimentConfig) -> None:
             config.env.num_objective_functions,
         )
         plt.close()
+    
+    plt = pf_plotting_function(
+        repertoire,
+        _repertoire_plots_save_dir,
+        "init",
+        config.env.num_objective_functions,
+    )
+    plt.close()
         
     
     # Run the algorithm
@@ -509,9 +517,16 @@ def main(config: ExperimentConfig) -> None:
                     str(evaluations_done),
                     config.env.num_objective_functions,
                 )
-                
                 plt.close()
-
+                
+            plt = pf_plotting_function(
+                repertoire,
+                _repertoire_plots_save_dir,
+                str(evaluations_done),
+                config.env.num_objective_functions,
+            )
+            plt.close()
+    
         # Save latest repertoire and metrics every 'checkpoint_period'
         if (iteration+1)*config.metrics_log_period  % config.checkpoint_period == 0:
             repertoire.save(path=_repertoire_dir)
@@ -571,9 +586,18 @@ def main(config: ExperimentConfig) -> None:
         )
                         
         wandb.log({"Final Repertoire": wandb.Image(plt)})
-        plt.savefig(f"{_repertoire_plots_save_dir}/repertoire_final")
         plt.close()
-
+        
+    plt = pf_plotting_function(
+        repertoire,
+        _repertoire_plots_save_dir,
+        "final",
+        config.env.num_objective_functions,
+    )
+                    
+    wandb.log({"Final Global PF": wandb.Image(plt)})
+    plt.close()
+    
     return repertoire, centroids, random_key, metrics, metrics_history
 
 if __name__ == '__main__':
