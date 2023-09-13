@@ -174,7 +174,7 @@ def main(config: ExperimentConfig) -> None:
 
     metrics_list = config.wandb_metrics_keys
     if config.env.standardise_rewards:
-          for obj_num in range(config.env.num_objective_functions):
+        for obj_num in range(config.env.num_objective_functions):
             metrics_list.append(f"running_reward_mean_{obj_num+1}")
             metrics_list.append(f"running_reward_var_{obj_num+1}")
 
