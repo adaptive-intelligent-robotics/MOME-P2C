@@ -320,7 +320,7 @@ def main(config: ExperimentConfig) -> None:
     # Initialize repertoire and emitter state
     
     if config.algo_name=="nsga2": 
-        population_size = config.total_batch_size * config.pareto_front_max_length
+        population_size = config.num_centroids * config.pareto_front_max_length
                
         repertoire, moqd_passive_repertoire, emitter_state, init_metrics, runnning_stats, random_key = algo_main.init(
             init_genotypes=init_genotypes,
@@ -332,7 +332,7 @@ def main(config: ExperimentConfig) -> None:
         )
                 
     elif config.algo_name=="spea2":
-        population_size = config.total_batch_size * config.pareto_front_max_length
+        population_size = config.num_centroids * config.pareto_front_max_length
 
         repertoire, moqd_passive_repertoire, emitter_state, init_metrics, runnning_stats, random_key = algo_main.init(
             init_genotypes=init_genotypes,
