@@ -5,7 +5,7 @@ bias_sampling: False
 preference_conditioned: False
 
 # Emitter params
-mutation_ga_batch_size: 128
+mutation_ga_batch_size: 256
 mutation_qpg_batch_size: 0
 inject_actor_batch_size: 0
 num_actor_active_samples: 0
