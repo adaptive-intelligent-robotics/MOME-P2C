@@ -37,10 +37,72 @@ From: airl_lab/default/airl_env:qdax_f57720d0
    git checkout $SINGULARITY_COMMIT
     
 
-%runscript
+%apprun mome
     cd /project/
     # Running the script
     echo
-    echo "Running python3 main.py "$@" "
+    echo "Running python3 main.py algo=mome "$@" "
     echo
-    python3 main.py "$@"
+    python3 main.py algo=mome "$@"
+
+%apprun mome-pgx
+    cd /project/
+    # Running the script
+    echo
+    echo "Running python3 main.py algo=mome-pgx "$@" "
+    echo
+    python3 main.py algo=mome-pgx "$@"
+
+%apprun pc-mome-pgx
+    cd /project/
+    # Running the script
+    echo
+    echo "Running python3 main.py algo=pc-mome-pgx "$@" "
+    echo
+    python3 main.py algo=pc-mome-pgx "$@"
+
+
+%apprun random-pc-mome-pgx
+    cd /project/
+    # Running the script
+    echo
+    echo "Running python3 main.py algo=random-pc-mome-pgx "$@" "
+    echo
+    python3 main.py algo=random-pc-mome-pgx "$@"
+
+
+%apprun one-hot-pc-mome-pgx
+    cd /project/
+    # Running the script
+    echo
+    echo "Running python3 main.py algo=one-hot-pc-mome-pgx "$@" "
+    echo
+    python3 main.py algo=one-hot-pc-mome-pgx "$@"
+
+
+%apprun pga
+    cd /project/
+    # Running the script
+    echo
+    echo "Running python3 baselines_main.py algo=pga "$@" "
+    echo
+    python3 baselines_main.py algo=pga "$@"
+
+
+%apprun nsga2
+    cd /project/
+    # Running the script
+    echo
+    echo "Running python3 baselines_main.py algo=nsga2 "$@" "
+    echo
+    python3 baselines_main.py algo=nsga2 "$@"
+    
+
+%apprun spea2
+    cd /project/
+    # Running the script
+    echo
+    echo "Running python3 baselines_main.py algo=spea2 "$@" "
+    echo
+    python3 baselines_main.py algo=spea2 "$@"
+    
