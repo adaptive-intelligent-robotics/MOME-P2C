@@ -3,6 +3,7 @@ from functools import partial
 from typing import Any, Callable, Optional, Tuple
 
 import jax
+import jax.numpy as jnp
 
 from qdax.core.containers.ga_repertoire import GARepertoire
 from qdax.core.containers.mome_repertoire import MOMERepertoire
@@ -48,7 +49,9 @@ class GeneticAlgorithm:
         population_size: int, 
         centroids: Centroid,
         pareto_front_max_length: int,
-        random_key: RNGKey
+        random_key: RNGKey,
+        num_objective_functions: int=2,
+        epsilon: float=1e-8,
     ) -> Tuple[GARepertoire, Optional[MOMERepertoire], Optional[EmitterState], RNGKey]:
         """Initialize a GARepertoire with an initial population of genotypes.
 
@@ -61,26 +64,42 @@ class GeneticAlgorithm:
             The initial repertoire, an initial emitter state and a new random key.
         """
 
+        running_reward_mean = jnp.zeros(num_objective_functions, dtype=jnp.float32)
+        running_reward_var = jnp.zeros(num_objective_functions, dtype=jnp.float32)
+        running_reward_count = epsilon
+
         # score initial genotypes
-        fitnesses, descriptors, extra_scores, random_key = self._scoring_function(
-            init_genotypes, random_key
+        fitnesses, descriptors, preferences, extra_scores, random_key = self._scoring_function(
+            init_genotypes,
+            running_reward_mean,
+            running_reward_var,
+            running_reward_count,
+            random_key
         )
+
+        # Update running statistics
+        running_reward_mean = extra_scores["running_reward_mean"]
+        running_reward_var = extra_scores["running_reward_var"]
+        running_reward_count = extra_scores["running_reward_count"]
 
         # init the repertoire
         repertoire = GARepertoire.init(
             genotypes=init_genotypes,
             fitnesses=fitnesses,
+            descriptors=descriptors,
+            preferences=preferences,
             population_size=population_size,
         )
 
         # init the passive MOQD repertoire for comparison
         moqd_passive_repertoire, container_addition_metrics = MOMERepertoire.init(
-                        genotypes=init_genotypes,
-                        fitnesses=fitnesses,
-                        descriptors=descriptors,
-                        centroids=centroids,
-                        pareto_front_max_length=pareto_front_max_length,
-                    )
+            genotypes=init_genotypes,
+            fitnesses=fitnesses,
+            descriptors=descriptors,
+            centroids=centroids,
+            preferences=preferences,
+            pareto_front_max_length=pareto_front_max_length,
+        )
 
         # get initial state of the emitter
         emitter_state, random_key = self._emitter.init(
@@ -100,10 +119,19 @@ class GeneticAlgorithm:
         moqd_metrics = self._moqd_metrics_function(self.moqd_passive_repertoire)
         moqd_metrics = self._emitter.update_added_counts(container_addition_metrics, moqd_metrics)
         ga_metrics = self._ga_metrics_function(repertoire)
+        
+        # Store running reward statistics
+        num_rewards = running_reward_mean.shape[0]
+        for m in range(num_rewards):
+            moqd_metrics[f"running_reward_mean_{m+1}"] = running_reward_mean[m]
+            moqd_metrics[f"running_reward_var_{m+1}"] = running_reward_var[m]
+        moqd_metrics["running_reward_count"] = running_reward_count
 
         metrics  = {**moqd_metrics,  **ga_metrics}
+        
+        running_stats = (running_reward_mean, running_reward_var, running_reward_count)
 
-        return repertoire, moqd_passive_repertoire, emitter_state, metrics, random_key
+        return repertoire, moqd_passive_repertoire, emitter_state, metrics, running_stats, random_key
 
     @partial(jax.jit, static_argnames=("self",))
     def update(
@@ -111,6 +139,7 @@ class GeneticAlgorithm:
         repertoire: GARepertoire,
         moqd_passive_repertoire: Optional[MOMERepertoire],
         emitter_state: Optional[EmitterState],
+        running_stats: Tuple[jnp.ndarray, jnp.ndarray, int],
         random_key: RNGKey,
     ) -> Tuple[GARepertoire, Optional[MOMERepertoire], Optional[EmitterState], Metrics, RNGKey]:
         """
@@ -131,19 +160,28 @@ class GeneticAlgorithm:
             metrics about the updated repertoire
             a new jax PRNG key
         """
+        running_reward_mean, running_reward_var, running_reward_count = running_stats
 
-        # generate offsprings
-        genotypes, random_key = self._emitter.emit(
+        # generate offsprings with the emitter
+        genotypes, emitter_state, random_key = self._emitter.emit(
             repertoire, emitter_state, random_key
         )
-
-        # score the offsprings
-        fitnesses, descriptors, extra_scores, random_key = self._scoring_function(
-            genotypes, random_key
+        
+        # scores the offsprings
+        fitnesses, descriptors, preferences, extra_scores, random_key = self._scoring_function(
+            genotypes,
+            running_reward_mean,
+            running_reward_var,
+            running_reward_count,
+            random_key
         )
-
+        # Update running statistics
+        running_reward_mean = extra_scores["running_reward_mean"]
+        running_reward_var = extra_scores["running_reward_var"]
+        running_reward_count = extra_scores["running_reward_count"]
+        
         # update the repertoire
-        repertoire = repertoire.add(genotypes, fitnesses, descriptors)
+        repertoire = repertoire.add(genotypes, fitnesses, descriptors, preferences)
 
         # update the passive repertoire
         moqd_passive_repertoire = moqd_passive_repertoire.empty()
@@ -151,6 +189,7 @@ class GeneticAlgorithm:
             repertoire.genotypes,
             repertoire.descriptors,
             repertoire.fitnesses,
+            repertoire.preferences,
         )
 
         # update emitter state after scoring is made
@@ -159,7 +198,7 @@ class GeneticAlgorithm:
             repertoire=repertoire,
             genotypes=genotypes,
             fitnesses=fitnesses,
-            descriptors=None,
+            descriptors=descriptors,
             extra_scores=extra_scores,
         )
 
@@ -167,9 +206,19 @@ class GeneticAlgorithm:
         moqd_metrics = self._moqd_metrics_function(moqd_passive_repertoire)
         moqd_metrics = self._emitter.update_added_counts(container_addition_metrics, moqd_metrics)
         ga_metrics = self._ga_metrics_function(repertoire)
+        
+        # Store running reward statistics
+        num_rewards = running_reward_mean.shape[0]
+        for m in range(num_rewards):
+            moqd_metrics[f"running_reward_mean_{m+1}"] = running_reward_mean[m]
+            moqd_metrics[f"running_reward_var_{m+1}"] = running_reward_var[m]
+        moqd_metrics["running_reward_count"] = running_reward_count
+        
         metrics  = {**moqd_metrics,  **ga_metrics}
+        
+        running_stats = (running_reward_mean, running_reward_var, running_reward_count)
 
-        return repertoire, moqd_passive_repertoire, emitter_state, metrics, random_key
+        return repertoire, moqd_passive_repertoire, emitter_state, metrics, running_stats, random_key
 
     @partial(jax.jit, static_argnames=("self",))
     def scan_update(
@@ -189,10 +238,10 @@ class GeneticAlgorithm:
             The updated repertoire and emitter state, with a new random key and metrics.
         """
         # iterate over grid
-        repertoire, moqd_passive_repertoire, emitter_state, random_key = carry
+        repertoire, moqd_passive_repertoire, emitter_state, running_stats, random_key = carry
 
-        repertoire, moqd_passive_repertoire, emitter_state, metrics, random_key = self.update(
-            repertoire, moqd_passive_repertoire, emitter_state, random_key
+        repertoire, moqd_passive_repertoire, emitter_state, metrics, running_stats, random_key = self.update(
+            repertoire, moqd_passive_repertoire, emitter_state, running_stats, random_key
         )
 
-        return (repertoire, moqd_passive_repertoire, emitter_state, random_key), metrics
+        return (repertoire, moqd_passive_repertoire, emitter_state, running_stats, random_key), metrics

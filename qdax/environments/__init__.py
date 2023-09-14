@@ -36,11 +36,11 @@ reward_offset = {
     "halfcheetah_uni": 9.231,
     "hopper_uni": 0.9,
     "walker2d_uni": 1.413,
-    "ant_multi": [0.0, 3.24],
-    "humanoid_multi": [0.0, 0.0],
-    "halfcheetah_multi": [0.0, 9.231],
-    "hopper_multi": [0.0, 0.9],
-    "walker2d_multi": [0.0, 1.413]
+    "ant_multi": 3.24,
+    "humanoid_multi": 0.0,
+    "halfcheetah_multi": 9.231,
+    "hopper_multi": 0.9,
+    "walker2d_multi": 1.413,
 }
 
 behavior_descriptor_extractor = {

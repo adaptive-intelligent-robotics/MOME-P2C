@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 
 from qdax.core.containers.ga_repertoire import GARepertoire
-from qdax.types import Fitness, Genotype, Descriptor
+from qdax.types import Fitness, Genotype, Descriptor, Preference
 
 
 class SPEA2Repertoire(GARepertoire):
@@ -57,6 +57,7 @@ class SPEA2Repertoire(GARepertoire):
         batch_of_genotypes: Genotype,
         batch_of_fitnesses: Fitness,
         batch_of_descriptors: Descriptor,
+        batch_of_preferences: Preference,
     ) -> SPEA2Repertoire:
         """Updates the population with the new solutions.
 
@@ -81,6 +82,7 @@ class SPEA2Repertoire(GARepertoire):
 
         candidates_fitnesses = jnp.concatenate((self.fitnesses, batch_of_fitnesses))
         candidate_descriptors = jnp.concatenate((self.descriptors, batch_of_descriptors))
+        candidate_preferences = jnp.concatenate((self.preferences, batch_of_preferences))
 
         # compute strength score for all solutions
         strength_scores = self._compute_strength_scores(batch_of_fitnesses)
@@ -92,11 +94,14 @@ class SPEA2Repertoire(GARepertoire):
         new_candidates = jax.tree_util.tree_map(lambda x: x[indices], candidates)
         new_fitnesses = candidates_fitnesses[indices]
         new_descriptors = candidate_descriptors[indices]
+        new_preferences= candidate_preferences[indices]
 
         new_repertoire = self.replace(
             genotypes=new_candidates, 
             fitnesses=new_fitnesses,
-            descriptors=new_descriptors)
+            descriptors=new_descriptors,
+            preferences=new_preferences
+        )
 
         return new_repertoire  # type: ignore
 
@@ -108,6 +113,7 @@ class SPEA2Repertoire(GARepertoire):
         population_size: int,
         num_neighbours: int,
         descriptors: Descriptor,
+        preferences: Preference,
     ) -> GARepertoire:
         """Initializes the repertoire.
 
@@ -133,15 +139,25 @@ class SPEA2Repertoire(GARepertoire):
         )
 
         default_descriptors = jnp.zeros(shape=(population_size, descriptors.shape[-1]))
-
+    
+        default_preferences = -jnp.inf * jnp.ones(
+            shape=(population_size, fitnesses.shape[-1])
+        )
+        
         # create an initial repertoire with those default values
         repertoire = cls(
             genotypes=default_genotypes,
             fitnesses=default_fitnesses,
             num_neighbours=num_neighbours,
-            descriptors=default_descriptors
+            descriptors=default_descriptors,
+            preferences=default_preferences,
         )
 
-        new_repertoire = repertoire.add(genotypes, fitnesses, descriptors)
+        new_repertoire = repertoire.add(
+            genotypes,
+            fitnesses,
+            descriptors,
+            preferences
+        )
 
         return new_repertoire  # type: ignore

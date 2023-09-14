@@ -14,7 +14,7 @@ from jax.flatten_util import ravel_pytree
 from numpy.random import RandomState
 from sklearn.cluster import KMeans
 
-from qdax.types import Centroid, Descriptor, Fitness, Genotype, RNGKey
+from qdax.types import Centroid, Descriptor, Fitness, Genotype, RNGKey, Preference
 
 
 def compute_cvt_centroids(
@@ -152,6 +152,7 @@ class MapElitesRepertoire(flax.struct.PyTreeNode):
     descriptors: Descriptor
     centroids: Centroid
     mo_fitnesses: Fitness
+    preferences: Preference
 
     def save(self, path: str = "./") -> None:
         """Saves the repertoire on disk in the form of .npy files.
@@ -176,6 +177,8 @@ class MapElitesRepertoire(flax.struct.PyTreeNode):
         jnp.save(path + "map_elites_fitnesses.npy", self.fitnesses)
         jnp.save(path + "map_elites_descriptors.npy", self.descriptors)
         jnp.save(path + "map_elites_centroids.npy", self.centroids)
+        jnp.save(path + "map_elites_mo_fitnesses.npy", self.mo_fitnesses)
+        jnp.save(path + "map_elites_preferences.npy", self.preferences)
 
     @classmethod
     def load(cls, reconstruction_fn: Callable, path: str = "./") -> MapElitesRepertoire:
@@ -196,12 +199,16 @@ class MapElitesRepertoire(flax.struct.PyTreeNode):
         fitnesses = jnp.load(path + "fitnesses.npy")
         descriptors = jnp.load(path + "descriptors.npy")
         centroids = jnp.load(path + "centroids.npy")
+        mo_fitnesses = jnp.load(path + "mo_fitnesses.npy")
+        preferences = jnp.load(path + "preferences.npy")
 
         return cls(
             genotypes=genotypes,
             fitnesses=fitnesses,
             descriptors=descriptors,
             centroids=centroids,
+            mo_fitnesses=mo_fitnesses,
+            preferences=preferences,
         )
 
     @partial(jax.jit, static_argnames=("num_samples",))
@@ -235,6 +242,7 @@ class MapElitesRepertoire(flax.struct.PyTreeNode):
         batch_of_descriptors: Descriptor,
         batch_of_fitnesses: Fitness,
         batch_of_mo_fitnesses: Fitness,
+        batch_of_preferences: Preference,
     ) -> MapElitesRepertoire:
         """
         Add a batch of elements to the repertoire.
@@ -304,14 +312,18 @@ class MapElitesRepertoire(flax.struct.PyTreeNode):
         new_mo_fitnesses = self.mo_fitnesses.at[batch_of_indices.squeeze(axis=-1)].set(
             batch_of_mo_fitnesses
         )
-
+        
+        new_preferences = self.preferences.at[batch_of_indices.squeeze(axis=-1)].set(
+            batch_of_preferences
+        )
 
         return MapElitesRepertoire(
             genotypes=new_repertoire_genotypes,
             fitnesses=new_fitnesses,
             descriptors=new_descriptors,
             centroids=self.centroids,
-            mo_fitnesses=new_mo_fitnesses
+            mo_fitnesses=new_mo_fitnesses,
+            preferences=new_preferences
         )
 
     @classmethod
@@ -322,6 +334,7 @@ class MapElitesRepertoire(flax.struct.PyTreeNode):
         descriptors: Descriptor,
         centroids: Centroid,
         mo_fitnesses: Fitness,
+        preferences: Preference,
     ) -> MapElitesRepertoire:
         """
         Initialize a Map-Elites repertoire with an initial population of genotypes.
@@ -352,6 +365,7 @@ class MapElitesRepertoire(flax.struct.PyTreeNode):
         )
         default_descriptors = jnp.zeros(shape=(num_centroids, centroids.shape[-1]))
         default_mo_fitnesses = -jnp.inf * jnp.ones(shape=(num_centroids, mo_fitnesses.shape[-1]))
+        default_preferences = -jnp.inf * jnp.ones(shape=(num_centroids, preferences.shape[-1]))
 
         repertoire = cls(
             genotypes=default_genotypes,
@@ -359,9 +373,16 @@ class MapElitesRepertoire(flax.struct.PyTreeNode):
             descriptors=default_descriptors,
             centroids=centroids,
             mo_fitnesses=default_mo_fitnesses,
+            preferences=default_preferences
         )
 
         # Add initial values to the repertoire
-        new_repertoire = repertoire.add(genotypes, descriptors, fitnesses, mo_fitnesses)
+        new_repertoire = repertoire.add(
+            genotypes,
+            descriptors,
+            fitnesses,
+            mo_fitnesses,
+            preferences
+        )
 
         return new_repertoire  # type: ignore

@@ -1,4 +1,4 @@
-name: mome
+name: nsga2
 
 # Sampling
 bias_sampling: False

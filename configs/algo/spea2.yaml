@@ -1,4 +1,4 @@
-name: mome
+name: spea2
 
 # Sampling
 bias_sampling: False
@@ -9,6 +9,7 @@ mutation_ga_batch_size: 128
 mutation_qpg_batch_size: 0
 inject_actor_batch_size: 0
 num_actor_active_samples: 0
+num_neighbours: 1
 
 # Polynomial mutation params
 proportion_to_mutate: 0.6 # don't actually use this as purely crossover

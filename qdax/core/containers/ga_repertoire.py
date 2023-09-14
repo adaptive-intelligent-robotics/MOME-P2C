@@ -10,7 +10,7 @@ import jax.numpy as jnp
 from jax.flatten_util import ravel_pytree
 
 from qdax.core.containers.repertoire import Repertoire
-from qdax.types import Fitness, Genotype, RNGKey, Descriptor
+from qdax.types import Fitness, Genotype, RNGKey, Descriptor, Preference
 
 
 class GARepertoire(Repertoire):
@@ -31,6 +31,7 @@ class GARepertoire(Repertoire):
     genotypes: Genotype
     fitnesses: Fitness
     descriptors: Descriptor
+    preferences: Preference
 
     @property
     def size(self) -> int:
@@ -54,6 +55,8 @@ class GARepertoire(Repertoire):
 
         jnp.save(path + "ga_genotypes.npy", flat_genotypes)
         jnp.save(path + "ga_scores.npy", self.fitnesses)
+        jnp.save(path + "ga_descriptors.npy", self.descriptors)
+        jnp.save(path + "ga_preferences.npy", self.preferences)
 
     @classmethod
     def load(cls, reconstruction_fn: Callable, path: str = "./") -> GARepertoire:
@@ -72,10 +75,14 @@ class GARepertoire(Repertoire):
         genotypes = jax.vmap(reconstruction_fn)(flat_genotypes)
 
         fitnesses = jnp.load(path + "ga_fitnesses.npy")
+        descriptors = jnp.load(path + "ga_descriptors.npy")
+        preferences = jnp.load(path + "ga_preferences.npy")
 
         return cls(
             genotypes=genotypes,
             fitnesses=fitnesses,
+            descriptors=descriptors,
+            preferences=preferences,
         )
 
     @partial(jax.jit, static_argnames=("num_samples",))
@@ -107,7 +114,11 @@ class GARepertoire(Repertoire):
 
     @jax.jit
     def add(
-        self, batch_of_genotypes: Genotype, batch_of_fitnesses: Fitness, batch_of_descriptors: Descriptor,
+        self,
+        batch_of_genotypes: Genotype,
+        batch_of_fitnesses: Fitness,
+        batch_of_descriptors: Descriptor,
+        batch_of_preferences: Preference,
     ) -> GARepertoire:
         """Implements the repertoire addition rules.
 
@@ -135,6 +146,10 @@ class GARepertoire(Repertoire):
         candidate_descriptors = jnp.concatenate(
             (self.descriptors, batch_of_descriptors), axis=0
         )
+        
+        candidate_preferences = jnp.concatenate(
+            (self.preferences, batch_of_preferences), axis=0
+        )
         # sort by fitnesses
         indices = jnp.argsort(jnp.sum(candidates_fitnesses, axis=1))[::-1]
 
@@ -149,7 +164,8 @@ class GARepertoire(Repertoire):
         new_repertoire = self.replace(
             genotypes=new_candidates, 
             fitnesses=candidates_fitnesses[survivor_indices], 
-            descriptors=candidate_descriptors[survivor_indices]
+            descriptors=candidate_descriptors[survivor_indices],
+            preferences=candidate_preferences[survivor_indices]
         )
 
         return new_repertoire  # type: ignore
@@ -160,6 +176,7 @@ class GARepertoire(Repertoire):
         genotypes: Genotype,
         fitnesses: Fitness,
         descriptors: Descriptor,
+        preferences: Preference, 
         population_size: int,
     ) -> GARepertoire:
         """Initializes the repertoire.
@@ -186,14 +203,24 @@ class GARepertoire(Repertoire):
         )
 
         default_descriptors = jnp.zeros(shape=(population_size, descriptors.shape[-1]))
+        
+        default_preferences = -jnp.inf * jnp.ones(
+            shape=(population_size, preferences.shape[-1])
+        )
 
         # create an initial repertoire with those default values
         repertoire = cls(
             genotypes=default_genotypes, 
             fitnesses=default_fitnesses,
-            descriptors=default_descriptors
+            descriptors=default_descriptors,
+            preferences=default_preferences
         )
-
-        new_repertoire = repertoire.add(genotypes, fitnesses, descriptors)
-
+        
+        new_repertoire = repertoire.add(
+            genotypes,
+            fitnesses,
+            descriptors,
+            preferences,
+        )
+        
         return new_repertoire  # type: ignore

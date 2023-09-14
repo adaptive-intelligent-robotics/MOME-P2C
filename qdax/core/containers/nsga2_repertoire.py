@@ -6,7 +6,7 @@ import jax
 import jax.numpy as jnp
 
 from qdax.core.containers.ga_repertoire import GARepertoire
-from qdax.types import Fitness, Genotype, Descriptor
+from qdax.types import Fitness, Genotype, Descriptor, Preference
 from qdax.utils.pareto_front import compute_masked_pareto_front
 
 
@@ -86,6 +86,7 @@ class NSGA2Repertoire(GARepertoire):
         batch_of_genotypes: Genotype, 
         batch_of_fitnesses: Fitness,
         batch_of_descriptors: Descriptor,
+        batch_of_preferences: Preference,
     ) -> NSGA2Repertoire:
         """Implements the repertoire addition rules.
 
@@ -120,6 +121,7 @@ class NSGA2Repertoire(GARepertoire):
 
         candidate_fitnesses = jnp.concatenate((self.fitnesses, batch_of_fitnesses))
         candidate_descriptors = jnp.concatenate((self.descriptors, batch_of_descriptors))
+        candidate_preferences = jnp.concatenate((self.preferences, batch_of_preferences))
 
         first_leaf = jax.tree_util.tree_leaves(candidates)[0]
         num_candidates = first_leaf.shape[0]
@@ -185,7 +187,7 @@ class NSGA2Repertoire(GARepertoire):
         new_index = jnp.arange(start=1, stop=len(to_keep_index) + 1) * to_keep_index
         new_index = new_index * (~front_index)
         to_keep_index = new_index > 0
-
+        
         # Compute crowding distances
         crowding_distances = self._compute_crowding_distances(
             candidate_fitnesses, ~front_index
@@ -230,6 +232,7 @@ class NSGA2Repertoire(GARepertoire):
         # update index
         to_keep_index = to_keep_index + front_index
 
+
         # go from boolean vector to indices - offset by 1
         indices = jnp.arange(start=1, stop=num_candidates + 1) * to_keep_index
 
@@ -247,8 +250,14 @@ class NSGA2Repertoire(GARepertoire):
         new_candidates = jax.tree_util.tree_map(lambda x: x[indices], candidates)
         new_scores = candidate_fitnesses[indices]
         new_descriptors = candidate_descriptors[indices]
+        new_preferences = candidate_preferences[indices]
 
-        new_repertoire = self.replace(genotypes=new_candidates, fitnesses=new_scores, descriptors=new_descriptors)
+        new_repertoire = self.replace(
+            genotypes=new_candidates,
+            fitnesses=new_scores,
+            descriptors=new_descriptors,
+            preferences=new_preferences
+        )
 
         #added_list = to_keep_index[original_population_size:]
         #removed_count = original_population_size - jnp.sum(to_keep_index[:original_population_size])

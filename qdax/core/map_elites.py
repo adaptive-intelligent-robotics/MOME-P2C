@@ -61,6 +61,8 @@ class MAPElites:
         moqd_passive_centroids: Centroid,
         pareto_front_max_length: int,
         random_key: RNGKey,
+        num_objective_functions: int=2,
+        epsilon: float=1e-8,
     ) -> Tuple[MapElitesRepertoire, Optional[MOMERepertoire], Optional[EmitterState], RNGKey]:
         """
         Initialize a Map-Elites repertoire with an initial population of genotypes.
@@ -77,10 +79,24 @@ class MAPElites:
             An initialized MAP-Elite repertoire with the initial state of the emitter,
             and a random key.
         """
+        running_reward_mean = jnp.zeros(num_objective_functions, dtype=jnp.float32)
+        running_reward_var = jnp.zeros(num_objective_functions, dtype=jnp.float32)
+        running_reward_count = epsilon
+
         # score initial genotypes
-        fitnesses, descriptors, extra_scores, random_key = self._scoring_function(
-            init_genotypes, random_key
+        fitnesses, descriptors, preferences, extra_scores, random_key = self._scoring_function(
+            init_genotypes,
+            running_reward_mean,
+            running_reward_var,
+            running_reward_count,
+            random_key
         )
+
+        # Update running statistics
+        running_reward_mean = extra_scores["running_reward_mean"]
+        running_reward_var = extra_scores["running_reward_var"]
+        running_reward_count = extra_scores["running_reward_count"]
+        
 
         mono_objective_fitnesses = jnp.sum(fitnesses, axis=-1)
 
@@ -91,16 +107,18 @@ class MAPElites:
             descriptors=descriptors,
             centroids=centroids,
             mo_fitnesses = fitnesses,
+            preferences=preferences,
         )
 
 
         # then readd the passive archive
         moqd_passive_repertoire, container_addition_metrics = MOMERepertoire.init(
-                        genotypes=init_genotypes,
-                        fitnesses=fitnesses,
-                        descriptors=descriptors,
-                        centroids=moqd_passive_centroids,
-                        pareto_front_max_length=pareto_front_max_length,
+            genotypes=init_genotypes,
+            fitnesses=fitnesses,
+            descriptors=descriptors,
+            centroids=moqd_passive_centroids,
+            preferences=preferences,
+            pareto_front_max_length=pareto_front_max_length,
         )
 
         # get initial state of the emitter
@@ -123,9 +141,19 @@ class MAPElites:
 
         moqd_metrics = self._moqd_metrics_function(moqd_passive_repertoire)
         moqd_metrics = self._emitter.update_added_counts(container_addition_metrics, moqd_metrics)
+        
+        # Store running reward statistics
+        num_rewards = running_reward_mean.shape[0]
+        for m in range(num_rewards):
+            moqd_metrics[f"running_reward_mean_{m+1}"] = running_reward_mean[m]
+            moqd_metrics[f"running_reward_var_{m+1}"] = running_reward_var[m]
+        moqd_metrics["running_reward_count"] = running_reward_count
+        
         metrics  = {**moqd_metrics,  **metrics}
 
-        return repertoire, moqd_passive_repertoire, emitter_state, metrics, random_key
+        running_stats = (running_reward_mean, running_reward_var, running_reward_count)
+
+        return repertoire, moqd_passive_repertoire, emitter_state, metrics, running_stats, random_key
 
     @partial(jax.jit, static_argnames=("self",))
     def update(
@@ -133,6 +161,7 @@ class MAPElites:
         repertoire: MapElitesRepertoire,
         moqd_passive_repertoire: Optional[MOMERepertoire],
         emitter_state: Optional[EmitterState],
+        running_stats: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray],
         random_key: RNGKey,
     ) -> Tuple[MapElitesRepertoire, Optional[MOMERepertoire], Optional[EmitterState], Metrics, RNGKey]:
         """
@@ -154,19 +183,36 @@ class MAPElites:
             metrics about the updated repertoire
             a new jax PRNG key
         """
+        running_reward_mean, running_reward_var, running_reward_count = running_stats
+
         # generate offsprings with the emitter
-        genotypes, random_key = self._emitter.emit(
+        genotypes, emitter_state, random_key = self._emitter.emit(
             repertoire, emitter_state, random_key
         )
+        
         # scores the offsprings
-        fitnesses, descriptors, extra_scores, random_key = self._scoring_function(
-            genotypes, random_key
+        fitnesses, descriptors, preferences, extra_scores, random_key = self._scoring_function(
+            genotypes,
+            running_reward_mean,
+            running_reward_var,
+            running_reward_count,
+            random_key
         )
+
+        # Update running statistics
+        running_reward_mean = extra_scores["running_reward_mean"]
+        running_reward_var = extra_scores["running_reward_var"]
+        running_reward_count = extra_scores["running_reward_count"]
 
         mono_objective_fitnesses = jnp.sum(fitnesses, axis=-1)
 
         # add genotypes in the repertoire
-        repertoire = repertoire.add(genotypes, descriptors, mono_objective_fitnesses, fitnesses)
+        repertoire = repertoire.add(
+            genotypes,
+            descriptors,
+            mono_objective_fitnesses,
+            fitnesses,
+            preferences)
         
         # first empty the passive repertoire
         moqd_passive_repertoire = moqd_passive_repertoire.empty()
@@ -174,6 +220,7 @@ class MAPElites:
             repertoire.genotypes,
             repertoire.descriptors,
             repertoire.mo_fitnesses,
+            repertoire.preferences,
         )
 
         # update emitter state after scoring is made
@@ -192,9 +239,19 @@ class MAPElites:
 
         moqd_metrics = self._moqd_metrics_function(moqd_passive_repertoire)
         moqd_metrics = self._emitter.update_added_counts(container_addition_metrics, moqd_metrics)
+        
+        # Store running reward statistics
+        num_rewards = running_reward_mean.shape[0]
+        for m in range(num_rewards):
+            moqd_metrics[f"running_reward_mean_{m+1}"] = running_reward_mean[m]
+            moqd_metrics[f"running_reward_var_{m+1}"] = running_reward_var[m]
+        moqd_metrics["running_reward_count"] = running_reward_count
+        
         metrics  = {**moqd_metrics,  **metrics}
+        
+        running_stats = (running_reward_mean, running_reward_var, running_reward_count)
 
-        return repertoire, moqd_passive_repertoire, emitter_state, metrics, random_key
+        return repertoire, moqd_passive_repertoire, emitter_state, metrics, running_stats, random_key
 
     @partial(jax.jit, static_argnames=("self",))
     def scan_update(
@@ -213,10 +270,10 @@ class MAPElites:
         Returns:
             The updated repertoire and emitter state, with a new random key and metrics.
         """
-        repertoire, moqd_passive_repertoire, emitter_state, random_key = carry
+        repertoire, moqd_passive_repertoire, emitter_state, running_stats, random_key = carry
 
-        repertoire, moqd_passive_repertoire, emitter_state, metrics, random_key = self.update(
-            repertoire, moqd_passive_repertoire, emitter_state, random_key
+        repertoire, moqd_passive_repertoire, emitter_state, metrics, running_stats, random_key = self.update(
+            repertoire, moqd_passive_repertoire, emitter_state, running_stats, random_key
         )
 
-        return (repertoire, moqd_passive_repertoire, emitter_state, random_key), metrics
+        return (repertoire, moqd_passive_repertoire, emitter_state, running_stats, random_key), metrics
