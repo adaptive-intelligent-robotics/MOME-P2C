@@ -53,31 +53,62 @@ From: airl_lab/default/airl_env:qdax_f57720d0
     echo
     python3 main.py algo=mome-pgx "$@"
 
-%apprun pc-mome-pgx
+%apprun mome-p2c-keep-prefs
     cd /project/
     # Running the script
     echo
-    echo "Running python3 main.py algo=pc-mome-pgx "$@" "
+    echo "Running python3 main.py algo=mome-p2c-keep-prefs "$@" "
     echo
-    python3 main.py algo=pc-mome-pgx "$@"
+    python3 main.py algo=mome-p2c-keep-prefs "$@"
 
 
-%apprun random-pc-mome-pgx
+%apprun mome-p2c
     cd /project/
     # Running the script
     echo
-    echo "Running python3 main.py algo=random-pc-mome-pgx "$@" "
+    echo "Running python3 main.py algo=mome-p2c "$@" "
     echo
-    python3 main.py algo=random-pc-mome-pgx "$@"
+    python3 main.py algo=mome-p2c "$@"
 
-
-%apprun one-hot-pc-mome-pgx
+%apprun mome-p2c-actor-random-sampler
     cd /project/
     # Running the script
     echo
-    echo "Running python3 main.py algo=one-hot-pc-mome-pgx "$@" "
+    echo "Running python3 main.py algo=mome-p2c-actor-random-sampler "$@" "
     echo
-    python3 main.py algo=one-hot-pc-mome-pgx "$@"
+    python3 main.py algo=mome-p2c-actor-random-sampler "$@"
+
+%apprun mome-p2c-no-actor
+    cd /project/
+    # Running the script
+    echo
+    echo "Running python3 main.py algo=mome-p2c-no-actor "$@" "
+    echo
+    python3 main.py algo=mome-p2c-no-actor "$@"
+
+%apprun mome-p2c-no-qpg
+    cd /project/
+    # Running the script
+    echo
+    echo "Running python3 main.py algo=mome-p2c-no-qpg "$@" "
+    echo
+    python3 main.py algo=mome-p2c-no-qpg "$@"
+
+%apprun mome-p2c-no-crowding
+    cd /project/
+    # Running the script
+    echo
+    echo "Running python3 main.py algo=mome-p2c-no-crowding "$@" "
+    echo
+    python3 main.py algo=mome-p2c-no-crowding "$@"
+
+%apprun mome-p2c-one-hot
+    cd /project/
+    # Running the script
+    echo
+    echo "Running python3 main.py algo=mome-p2c-one-hot "$@" "
+    echo
+    python3 main.py algo=mome-p2c-one-hot "$@"
 
 
 %apprun pga

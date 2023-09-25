@@ -1,4 +1,4 @@
-name: pc-mome-pgx
+name: mome-p2c-no-qpg
 
 # Sampling
 bias_sampling: True
@@ -9,8 +9,8 @@ mutation_ga_batch_size: 128
 mutation_qpg_batch_size: 128
 
 # Preferenced-conditioned actor hidden layer sizes
-pc_actor_uniform_preference_sampling: True
-inject_actor_batch_size: 64
+pc_actor_uniform_preference_sampling: False
+inject_actor_batch_size: 128
 
 # Which sampling method to use for the preference conditioned policy gradient
 sampler: "keep"

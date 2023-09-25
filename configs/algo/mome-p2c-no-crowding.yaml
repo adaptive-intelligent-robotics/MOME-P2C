@@ -1,0 +1,16 @@
+name: mome-p2c-no-crowding
+
+# Sampling
+bias_sampling: False
+preference_conditioned: True
+
+# Emitter params
+mutation_ga_batch_size: 128
+mutation_qpg_batch_size: 128
+
+# Preferenced-conditioned actor hidden layer sizes
+pc_actor_uniform_preference_sampling: False
+inject_actor_batch_size: 64
+
+# Which sampling method to use for the preference conditioned policy gradient
+sampler: "random"

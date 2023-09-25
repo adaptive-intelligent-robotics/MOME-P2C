@@ -39,13 +39,6 @@ from qdax.utils.metrics import default_moqd_metrics, moqd_metrics_3d, pc_actor_m
 from qdax.utils.pareto_front import uniform_preference_sampling, uniform_and_one_hot_sampling
 
 
-preference_conditioned_algos = [
-    "pc-mome-pgx",
-    "one-hot-pc-mome-pgx",
-    "pg-pc-mome-pgx",
-    "random-pc-mome-pgx"
-]
-
 @dataclass
 class ExperimentConfig:
     """Configuration from this experiment script"""
@@ -145,7 +138,7 @@ def main(config: ExperimentConfig) -> None:
     reset_fn = jax.jit(jax.vmap(env.reset))
     init_states = reset_fn(keys)
 
-    if config.algo_name in preference_conditioned_algos:
+    if config.algo.preference_conditioned:
         actor_keys = jnp.repeat(jnp.expand_dims(subkey, axis=0), repeats=config.algo.inject_actor_batch_size, axis=0)
         actor_init_states = reset_fn(actor_keys)
 
@@ -203,7 +196,7 @@ def main(config: ExperimentConfig) -> None:
     )
 
 
-    if config.algo_name == "mome-pgx" or config.algo_name in preference_conditioned_algos:
+    if config.algo_name == "mome-pgx" or config.algo.preference_conditioned:
         # Define the PG-emitter config
         pg_emitter_config = PGAMEConfig(
             num_objective_functions=config.env.num_objective_functions,
@@ -259,7 +252,7 @@ def main(config: ExperimentConfig) -> None:
             variation_fn=ga_variation_function,
         )
 
-    if config.algo_name in preference_conditioned_algos:
+    if config.algo.preference_conditioned:
         qpg_emit_batch_size = config.algo.mutation_qpg_batch_size - config.algo.inject_actor_batch_size
         
         extra_log_metrics = ["emitter_ga_count",

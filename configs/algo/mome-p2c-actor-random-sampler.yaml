@@ -1,4 +1,4 @@
-name: random-pc-mome-pgx
+name: mome-p2c-actor-random-sampler
 
 # Sampling
 bias_sampling: True
