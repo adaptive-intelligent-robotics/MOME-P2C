@@ -179,8 +179,8 @@ class PCMOPGAEmitter(MultiEmitter):
         metrics["removed_count"] = jnp.sum(removed_list)
 
         pg_added_list = added_list[:n_pg]
-        inject_added_list = added_list[n_pg+1: n_pg+n_inject]
-        mutation_added_list = added_list[n_pg+n_inject+1:]
+        inject_added_list = added_list[n_pg: n_pg+n_inject]
+        mutation_added_list = added_list[n_pg+n_inject:]
 
         metrics[f'emitter_pg_count'] = jnp.sum(pg_added_list)
         metrics[f'emitter_actor_inject_count'] = jnp.sum(inject_added_list)

@@ -172,24 +172,29 @@ def pc_actor_metrics(
     sampled_preferences: Preference,
 )-> Metrics:
     
+    if sampled_preferences == None:
+        return {}
     
-    errors = jnp.abs(achieved_preferences - sampled_preferences)
+    
+    else:
         
-    # Calculate total error
-    pc_actor_total_error = jnp.mean((
-        jnp.sum(errors, axis=1)
-    ))
-    
-    # Calculate whether there is correlation between error and preference sampled
-    num_objectives = achieved_preferences.shape[1]
-    
-    pc_actor_metrics = {"pc_actor_total_error": pc_actor_total_error}
-    
-    for obj in range(num_objectives):
-        error = errors[:,obj]
-        preference = sampled_preferences[:,obj]
-        correlation = jnp.corrcoef(error, preference)[0,1]
-        pc_actor_metrics[f"pc_actor_f{obj+1}_errors_correlation"] = correlation
+        errors = jnp.abs(achieved_preferences - sampled_preferences)
+            
+        # Calculate total error
+        pc_actor_total_error = jnp.mean((
+            jnp.sum(errors, axis=1)
+        ))
+        
+        # Calculate whether there is correlation between error and preference sampled
+        num_objectives = achieved_preferences.shape[1]
+        
+        pc_actor_metrics = {"pc_actor_total_error": pc_actor_total_error}
+        
+        for obj in range(num_objectives):
+            error = errors[:,obj]
+            preference = sampled_preferences[:,obj]
+            correlation = jnp.corrcoef(error, preference)[0,1]
+            pc_actor_metrics[f"pc_actor_f{obj+1}_errors_correlation"] = correlation
         
     
     return pc_actor_metrics

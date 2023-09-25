@@ -258,12 +258,13 @@ def main(config: ExperimentConfig) -> None:
         extra_log_metrics = ["emitter_ga_count",
                              "emitter_actor_inject_count",
                              "emitter_pg_count",
-                             "pc_actor_total_error"
         ]
 
-        for obj_num in range(config.env.num_objective_functions):
-            extra_log_metrics.append(f"pc_actor_f{obj_num+1}_errors_correlation")         
-
+        if config.algo.inject_actor_batch_size > 0:
+            for obj_num in range(config.env.num_objective_functions):
+                extra_log_metrics.append(f"pc_actor_f{obj_num+1}_errors_correlation")   
+            metrics_list += ["pc_actor_total_error"]
+        
         metrics_list += extra_log_metrics     
 
         pc_actor_layer_sizes = config.policy_hidden_layer_sizes + (env.action_size,)
