@@ -256,9 +256,10 @@ class PCQualityPGEmitter(Emitter):
         all_offspring.append(pg_genotypes)
         
         # reshape actor for injection
-        random_key, subkey = jax.random.split(random_key)
-        actor_genotypes, emitter_state = self.emit_actor(emitter_state, subkey)
-        all_offspring.append(actor_genotypes)
+        if self._config.inject_actor_batch_size > 0:
+            random_key, subkey = jax.random.split(random_key)
+            actor_genotypes, emitter_state = self.emit_actor(emitter_state, subkey)
+            all_offspring.append(actor_genotypes)
         
         # concatenate offsprings together
         genotypes = jax.tree_util.tree_map(
@@ -375,33 +376,38 @@ class PCQualityPGEmitter(Emitter):
 
         episode_length = transitions.preference.shape[1]
         
-        # update actor input preferences
-        pg_preferences = transitions.input_preference[:self._config.qpg_batch_size]
-        ga_preferences = transitions.input_preference[self.batch_size:]
         actor_input_preferences = emitter_state.actor_preferences
-        tiled_actor_input_preferences = jnp.repeat(
-            actor_input_preferences[:, jnp.newaxis, :],
-            episode_length,
-            axis=1
-        )
         
-        cat_input_preferences = jnp.concatenate(
-            [pg_preferences,
-            tiled_actor_input_preferences,
-            ga_preferences],
-            axis=0,
-        )
-        transitions = transitions.replace(
-            input_preference = cat_input_preferences
-        )
-        
-        # calculate actor metrics:
-        actor_achieved_preferences = transitions.preference[self._config.qpg_batch_size: self.batch_size, 0, :]
-        pc_actor_metrics = self._pc_actor_metrics_function(
-            actor_achieved_preferences,
-            actor_input_preferences,
-        )
-
+        if actor_input_preferences != None:
+            # update actor input preferences
+            pg_preferences = transitions.input_preference[:self._config.qpg_batch_size]
+            ga_preferences = transitions.input_preference[self.batch_size:]
+            tiled_actor_input_preferences = jnp.repeat(
+                actor_input_preferences[:, jnp.newaxis, :],
+                episode_length,
+                axis=1
+            )
+            
+            cat_input_preferences = jnp.concatenate(
+                [pg_preferences,
+                tiled_actor_input_preferences,
+                ga_preferences],
+                axis=0,
+            )
+            transitions = transitions.replace(
+                input_preference = cat_input_preferences
+            )
+            
+            # calculate actor metrics:
+            actor_achieved_preferences = transitions.preference[self._config.qpg_batch_size: self.batch_size, 0, :]
+            pc_actor_metrics = self._pc_actor_metrics_function(
+                actor_achieved_preferences,
+                actor_input_preferences,
+            )
+            
+        else:
+            pc_actor_metrics = {}
+            
         # add transitions in the replay buffer
         replay_buffer = emitter_state.replay_buffer.insert(transitions)
         emitter_state = emitter_state.replace(replay_buffer=replay_buffer)
