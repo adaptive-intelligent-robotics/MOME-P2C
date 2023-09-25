@@ -217,6 +217,10 @@ class GeneticAlgorithm:
             moqd_metrics[f"running_reward_mean_{m+1}"] = running_reward_mean[m]
             moqd_metrics[f"running_reward_var_{m+1}"] = running_reward_var[m]
         moqd_metrics["running_reward_count"] = running_reward_count
+    
+        # store empirically observed min and max rewards
+        moqd_metrics["min_rewards"] = extra_scores["min_rewards"]
+        moqd_metrics["max_rewards"] = extra_scores["max_rewards"]
         
         metrics  = {**moqd_metrics,  **ga_metrics}
         
