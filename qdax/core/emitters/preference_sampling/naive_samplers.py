@@ -96,23 +96,24 @@ class OneHotPreferenceSampler(PreferenceSampler):
             random_key = subkey,
             num_samples = self._config.emitter_batch_size
         )
-
-        # Generate random weights for sampled genotypes
-        random_weights, _ = uniform_preference_sampling(
-            random_key = random_key,
-            batch_size = self._config.emitter_batch_size,
-            num_objectives = self._config.num_objectives,
-        )
+                
+        one_hot_batch_size = self._config.emitter_batch_size//self._config.num_objectives
+        final_one_hot_batch_size = self._config.emitter_batch_size - (self._config.num_objectives - 1) * (self._config.emitter_batch_size//self._config.num_objectives)     
+        weights = jnp.zeros((self._config.emitter_batch_size, self._config.num_objectives))
         
-        # Turn weights into one-hot vectors using argmax
-        idx = jnp.argmax(random_weights, axis=1)
-        one_hot = jnp.zeros_like(random_weights)
-        weights = one_hot.at[jnp.arange(random_weights.shape[0]), idx].set(1.0)
-
+        for i in range(self._config.num_objectives - 1):
+            one_hot = jnp.zeros(self._config.num_objectives).at[i].set(1.0)
+            one_hot_tiled = jnp.repeat(jnp.expand_dims(one_hot, axis=0), one_hot_batch_size, axis=0)
+            weights = weights.at[i*one_hot_batch_size: (i+1)*one_hot_batch_size].set(one_hot_tiled)
+        
+        final_one_hot = jnp.zeros(self._config.num_objectives).at[-1].set(1.0)
+        final_one_hot_tiles = jnp.repeat(jnp.expand_dims(final_one_hot, axis=0), final_one_hot_batch_size, axis=0)
+        weights = weights.at[-final_one_hot_batch_size:].set(final_one_hot_tiles)
+                                    
         sampling_state = sampling_state.replace(
             random_key = random_key
         )
-
+        
         return genotypes, weights, sampling_state
 
 
