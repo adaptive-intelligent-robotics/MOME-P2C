@@ -53,7 +53,6 @@ class MAPElites:
         self._metrics_function = metrics_function
         self._moqd_metrics_function = moqd_metrics_function
 
-    @partial(jax.jit, static_argnames=("self", "pareto_front_max_length"))
     def init(
         self,
         init_genotypes: Genotype,
@@ -141,6 +140,10 @@ class MAPElites:
 
         moqd_metrics = self._moqd_metrics_function(moqd_passive_repertoire)
         moqd_metrics = self._emitter.update_added_counts(container_addition_metrics, moqd_metrics)
+
+        # store empirically observed min and max rewards
+        moqd_metrics["min_rewards"] = extra_scores["min_rewards"]
+        moqd_metrics["max_rewards"] = extra_scores["max_rewards"]
         
         # Store running reward statistics
         num_rewards = running_reward_mean.shape[0]
@@ -239,7 +242,11 @@ class MAPElites:
 
         moqd_metrics = self._moqd_metrics_function(moqd_passive_repertoire)
         moqd_metrics = self._emitter.update_added_counts(container_addition_metrics, moqd_metrics)
-        
+  
+        # store empirically observed min and max rewards
+        moqd_metrics["min_rewards"] = extra_scores["min_rewards"]
+        moqd_metrics["max_rewards"] = extra_scores["max_rewards"]
+              
         # Store running reward statistics
         num_rewards = running_reward_mean.shape[0]
         for m in range(num_rewards):

@@ -32,15 +32,6 @@ class SPEA2(GeneticAlgorithm):
     b13724cb54ae4171916f3f969d304b9e9752a57f"
     """
 
-    @partial(
-        jax.jit,
-        static_argnames=(
-            "self",
-            "population_size",
-            "num_neighbours",
-            "pareto_front_max_length"
-        ),
-    )
     def init(
         self,
         init_genotypes: Genotype,
@@ -108,6 +99,10 @@ class SPEA2(GeneticAlgorithm):
         moqd_metrics = self._moqd_metrics_function(moqd_passive_repertoire)
         moqd_metrics = self._emitter.update_added_counts(container_addition_metrics, moqd_metrics)
         ga_metrics = self._ga_metrics_function(repertoire)
+
+        # store empirically observed min and max rewards
+        moqd_metrics["min_rewards"] = extra_scores["min_rewards"]
+        moqd_metrics["max_rewards"] = extra_scores["max_rewards"]
 
        # Store running reward statistics
         num_rewards = running_reward_mean.shape[0]

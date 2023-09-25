@@ -95,6 +95,10 @@ class NSGA2(GeneticAlgorithm):
         moqd_metrics = self._emitter.update_added_counts(container_addition_metrics, moqd_metrics)
         ga_metrics = self._ga_metrics_function(repertoire)
 
+        # store empirically observed min and max rewards
+        moqd_metrics["min_rewards"] = extra_scores["min_rewards"]
+        moqd_metrics["max_rewards"] = extra_scores["max_rewards"]
+        
        # Store running reward statistics
         num_rewards = running_reward_mean.shape[0]
         for m in range(num_rewards):

@@ -360,8 +360,7 @@ def main(config: ExperimentConfig) -> None:
 
 
     # Log initial metrics with wandb
-    evaluations_multiplier = config.total_batch_size
-    evaluations_done = evaluations_multiplier * config.metrics_log_period
+    evaluations_done = config.total_batch_size
     logged_metrics = {"evaluations": evaluations_done,  "time": initial_repertoire_time}
 
     for key in metrics_list:
@@ -422,7 +421,7 @@ def main(config: ExperimentConfig) -> None:
 
         # log metrics
         metrics_history = {key: jnp.concatenate((metrics_history[key], metrics[key]), axis=0) for key in metrics}
-        evaluations_done += config.metrics_log_period * evaluations_multiplier
+        evaluations_done += config.metrics_log_period * config.total_batch_size
         logged_metrics = {"evaluations": evaluations_done,  "time": timelapse}
 
         for key in metrics_list:
