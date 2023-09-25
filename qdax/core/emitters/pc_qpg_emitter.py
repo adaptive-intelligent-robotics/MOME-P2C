@@ -20,7 +20,7 @@ from qdax.core.neuroevolution.buffers.buffer import QDTransition, ReplayBuffer
 from qdax.core.neuroevolution.losses.td3_loss import make_pc_td3_loss_fn
 from qdax.core.neuroevolution.networks.networks import MOQModule
 from qdax.environments.base_wrappers import QDEnv
-from qdax.types import Descriptor, ExtraScores, Fitness, Genotype, Params, Preference, RNGKey
+from qdax.types import Descriptor, ExtraScores, Fitness, Genotype, Params, Preference, Metrics, RNGKey
 from qdax.utils.pareto_front import uniform_preference_sampling
 
 
@@ -59,6 +59,8 @@ class PCQualityPGEmitterState(EmitterState):
     target_critic_params: Params
     target_actor_params: Params
     replay_buffer: ReplayBuffer
+    actor_preferences: Preference
+    pc_actor_metrics: Metrics
     random_key: RNGKey
     steps: jnp.ndarray
 
@@ -75,6 +77,7 @@ class PCQualityPGEmitter(Emitter):
         config: PCQualityPGConfig,
         policy_network: nn.Module,
         pc_actor_network: nn.Module,
+        pc_actor_metrics_function: Callable[[Preference, Preference], Metrics],
         pc_actor_preferences_sample_fn:  Callable[[MOMERepertoire, RNGKey], jnp.ndarray],
         sampler: PreferenceSampler,
         env: QDEnv,
@@ -83,6 +86,7 @@ class PCQualityPGEmitter(Emitter):
         self._env = env
         self._policy_network = policy_network
         self._pc_actor_network = pc_actor_network
+        self._pc_actor_metrics_function = pc_actor_metrics_function
         self._pc_actor_preferences_sample_fn = pc_actor_preferences_sample_fn
 
         # Init Critics
@@ -192,7 +196,13 @@ class PCQualityPGEmitter(Emitter):
             init_genotypes=init_genotypes,
             random_key=subkey,
         )
-
+        
+        # Init dummy actor preferences
+        dummy_preferences, random_key = self._pc_actor_preferences_sample_fn(
+            random_key = random_key,
+        )
+        dummy_metrics = self._pc_actor_metrics_function(dummy_preferences, dummy_preferences)
+        
         # Initial training state
         random_key, subkey = jax.random.split(random_key)
         emitter_state = PCQualityPGEmitterState(
@@ -205,6 +215,8 @@ class PCQualityPGEmitter(Emitter):
             random_key=subkey,
             steps=jnp.array(0),
             replay_buffer=replay_buffer,
+            actor_preferences=dummy_preferences,
+            pc_actor_metrics=dummy_metrics,
             sampling_state=sampling_state,
         )
 
@@ -245,7 +257,7 @@ class PCQualityPGEmitter(Emitter):
         
         # reshape actor for injection
         random_key, subkey = jax.random.split(random_key)
-        actor_genotypes = self.emit_actor(emitter_state, subkey)
+        actor_genotypes, emitter_state = self.emit_actor(emitter_state, subkey)
         all_offspring.append(actor_genotypes)
         
         # concatenate offsprings together
@@ -295,6 +307,7 @@ class PCQualityPGEmitter(Emitter):
             random_key = random_key,
         )
         
+        emitter_state = emitter_state.replace(actor_preferences=random_weights)
         
         # reshape to be same shape as repertoire genotypes
         partial_reshape_fun = partial(self.reshape_actor_params, actor_params=emitter_state.actor_params)
@@ -302,7 +315,7 @@ class PCQualityPGEmitter(Emitter):
             random_weights
         )    
         
-        return genotypes
+        return genotypes, emitter_state
     
     
     @partial(jax.jit, static_argnames=("self",))
@@ -360,6 +373,35 @@ class PCQualityPGEmitter(Emitter):
         assert "transitions" in extra_scores.keys(), "Missing transitions or wrong key"
         transitions = extra_scores["transitions"]
 
+        episode_length = transitions.preference.shape[1]
+        
+        # update actor input preferences
+        pg_preferences = transitions.input_preference[:self._config.qpg_batch_size]
+        ga_preferences = transitions.input_preference[self.batch_size:]
+        actor_input_preferences = emitter_state.actor_preferences
+        tiled_actor_input_preferences = jnp.repeat(
+            actor_input_preferences[:, jnp.newaxis, :],
+            episode_length,
+            axis=1
+        )
+        
+        cat_input_preferences = jnp.concatenate(
+            [pg_preferences,
+            tiled_actor_input_preferences,
+            ga_preferences],
+            axis=0,
+        )
+        transitions = transitions.replace(
+            input_preference = cat_input_preferences
+        )
+        
+        # calculate actor metrics:
+        actor_achieved_preferences = transitions.preference[self._config.qpg_batch_size: self.batch_size, 0, :]
+        pc_actor_metrics = self._pc_actor_metrics_function(
+            actor_achieved_preferences,
+            actor_input_preferences,
+        )
+
         # add transitions in the replay buffer
         replay_buffer = emitter_state.replay_buffer.insert(transitions)
         emitter_state = emitter_state.replace(replay_buffer=replay_buffer)
@@ -370,7 +412,10 @@ class PCQualityPGEmitter(Emitter):
             sampling_state=emitter_state.sampling_state,
             batch_new_fitnesses=pg_fitnesses,
         )
-        emitter_state = emitter_state.replace(sampling_state=sampling_state)
+        emitter_state = emitter_state.replace(
+            sampling_state=sampling_state,
+            pc_actor_metrics=pc_actor_metrics,
+        )
 
         def scan_train_critics(
             carry: PCQualityPGEmitterState, unused: Any

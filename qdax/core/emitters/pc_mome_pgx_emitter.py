@@ -23,10 +23,8 @@ class PCMOPGAEmitter(MultiEmitter):
         config: PGAMEConfig,
         policy_network: nn.Module,
         pc_actor_network: nn.Module,
-        pc_actor_scoring_function: Callable[[Params, Preference, RNGKey], Tuple[Fitness, Descriptor, Preference, ExtraScores, RNGKey]],
         pc_actor_metrics_function: Callable[[Preference, Preference], Metrics],
         pc_actor_preferences_sample_fn: Callable[[MOMERepertoire, RNGKey], jnp.ndarray],
-        num_actor_active_samples: int,
         sampler: PreferenceSampler,
         env: QDEnv,
         variation_fn: Callable[[Params, Params, RNGKey], Tuple[Params, RNGKey]],
@@ -37,10 +35,7 @@ class PCMOPGAEmitter(MultiEmitter):
         self._config = config
         self._policy_network = policy_network
         self._pc_actor_network = pc_actor_network
-        self._pc_actor_scoring_function = pc_actor_scoring_function
-        self._pc_actor_metrics_function = pc_actor_metrics_function
         self._pc_actor_preferences_sample_fn = pc_actor_preferences_sample_fn
-        self._num_actor_active_samples = num_actor_active_samples
         self._env = env
         self._variation_fn = variation_fn
 
@@ -77,6 +72,7 @@ class PCMOPGAEmitter(MultiEmitter):
             config=qpg_config,
             policy_network=policy_network,
             pc_actor_network=pc_actor_network,
+            pc_actor_metrics_function=pc_actor_metrics_function,
             pc_actor_preferences_sample_fn=pc_actor_preferences_sample_fn,
             sampler=sampler,
             env=env
@@ -99,57 +95,6 @@ class PCMOPGAEmitter(MultiEmitter):
     
 
 
-    @partial(jax.jit, static_argnames=("self",))
-    def evaluate_preference_conditioned_actor(
-        self,
-        repertoire: MOMERepertoire,
-        emitter_state: MultiEmitterState,
-        running_reward_mean: jnp.ndarray,
-        running_reward_std: jnp.ndarray,
-        running_reward_count: int,
-        random_key: RNGKey,
-    )-> Tuple[MultiEmitterState, RNGKey]:
-        """Evaluates the preference conditioned actor on given preferences in the environment
-        and adds the transitions to the replay buffer.
-        """
-
-        pg_emitter_state = emitter_state.emitter_states[0]
-        ga_emitter_state = emitter_state.emitter_states[1]
-                
-        actor_eval_params = jax.tree_map(
-            lambda x: jnp.repeat(
-                jnp.expand_dims(x, axis=0), self._num_actor_active_samples, axis=0
-            ),
-            pg_emitter_state.actor_params
-        )
-        
-        sampled_preferences, random_key = self._pc_actor_preferences_sample_fn(
-            random_key,
-        )
-
-        _, _, achieved_preferences, extra_scores, random_key = self._pc_actor_scoring_function(
-            actor_eval_params,
-            sampled_preferences,
-            running_reward_mean,
-            running_reward_std,
-            running_reward_count,
-            random_key
-        )
-        
-        pc_actor_metrics = self._pc_actor_metrics_function(
-            achieved_preferences,
-            sampled_preferences,
-        )
-
-        transitions = extra_scores["transitions"]
-
-        # add transitions in the replay buffer
-        replay_buffer = pg_emitter_state.replay_buffer.insert(transitions)
-        new_pg_emitter_state = pg_emitter_state.replace(replay_buffer=replay_buffer)
-
-        new_emitter_state = MultiEmitterState(tuple([new_pg_emitter_state, ga_emitter_state]))
-
-        return new_emitter_state, extra_scores, pc_actor_metrics, random_key
 
     def init_random_pg(
         self,

@@ -8,7 +8,6 @@ preference_conditioned: False
 mutation_ga_batch_size: 256
 mutation_qpg_batch_size: 0
 inject_actor_batch_size: 0
-num_actor_active_samples: 0
 num_neighbours: 1
 
 # Polynomial mutation params

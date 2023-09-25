@@ -20,7 +20,7 @@ from qdax.core.containers.mapelites_repertoire import compute_cvt_centroids
 from qdax.core.emitters.pga_me_emitter import PGAMEConfig, MOPGAEmitter
 from qdax.core.emitters.pc_mome_pgx_emitter import PCMOPGAEmitter
 from qdax.core.mome import MOME
-from qdax.core.neuroevolution.mdp_utils import scoring_function, preference_conditioned_scoring_function
+from qdax.core.neuroevolution.mdp_utils import scoring_function
 from qdax.core.neuroevolution.networks.networks import MLP
 from qdax.core.emitters.preference_sampling.naive_samplers import (
     KeepPreferencesSampler,
@@ -146,7 +146,7 @@ def main(config: ExperimentConfig) -> None:
     init_states = reset_fn(keys)
 
     if config.algo_name in preference_conditioned_algos:
-        actor_keys = jnp.repeat(jnp.expand_dims(subkey, axis=0), repeats=config.algo.num_actor_active_samples, axis=0)
+        actor_keys = jnp.repeat(jnp.expand_dims(subkey, axis=0), repeats=config.algo.inject_actor_batch_size, axis=0)
         actor_init_states = reset_fn(actor_keys)
 
     # TO DO: save init_state  
@@ -288,26 +288,15 @@ def main(config: ExperimentConfig) -> None:
         
         if config.algo.pc_actor_uniform_preference_sampling:
             actor_sampling_fn = partial(uniform_preference_sampling,
-                batch_size=config.algo.num_actor_active_samples,
+                batch_size=config.algo.inject_actor_batch_size,
                 num_objectives=config.env.num_objective_functions
             )
         else:
             actor_sampling_fn = partial(uniform_and_one_hot_sampling,
-                batch_size=config.algo.num_actor_active_samples,
+                batch_size=config.algo.inject_actor_batch_size,
                 num_objectives=config.env.num_objective_functions
             )
             
-        preference_conditioned_scoring_fn = partial(preference_conditioned_scoring_function,
-            init_states=actor_init_states,
-            episode_length=config.episode_length,
-            pc_play_step_fn=play_pc_mo_step_function,
-            behavior_descriptor_extractor=bd_extraction_fn,
-            num_objective_functions=config.env.num_objective_functions,
-            normalise_rewards=config.env.normalise_rewards,
-            standardise_rewards=config.env.standardise_rewards,
-            min_rewards=jnp.array(config.env.min_rewards),
-            max_rewards=jnp.array(config.env.max_rewards),
-        )
 
         sampling_config = NaiveSamplingConfig(
             num_objectives=config.env.num_objective_functions,
@@ -349,10 +338,8 @@ def main(config: ExperimentConfig) -> None:
             config=pg_emitter_config,
             policy_network=policy_network,
             pc_actor_network=pc_actor_network,
-            pc_actor_scoring_function=preference_conditioned_scoring_fn,
             pc_actor_metrics_function=pc_actor_metrics,
             pc_actor_preferences_sample_fn=actor_sampling_fn,
-            num_actor_active_samples=config.algo.num_actor_active_samples,
             sampler=sampler,
             env=env,
             variation_fn=ga_variation_function,
@@ -361,8 +348,8 @@ def main(config: ExperimentConfig) -> None:
         )
 
     # Set up logging functions 
-    evaluations_multiplier = (config.total_batch_size - config.algo.inject_actor_batch_size + config.algo.num_actor_active_samples) 
-    num_iterations = config.num_evaluations // evaluations_multiplier
+    assert(config.algo.mutation_ga_batch_size + config.algo.mutation_qpg_batch_size == config.total_batch_size)
+    num_iterations = config.num_evaluations // config.total_batch_size
     num_loops = int(num_iterations/config.metrics_log_period)
 
     logging.basicConfig(level=logging.DEBUG)
@@ -429,7 +416,7 @@ def main(config: ExperimentConfig) -> None:
 
 
     # Log initial metrics with wandb
-    evaluations_done = evaluations_multiplier
+    evaluations_done = config.total_batch_size
     logged_metrics = {"evaluations": evaluations_done,  "time": initial_repertoire_time}
 
     for key in metrics_list:
@@ -491,7 +478,7 @@ def main(config: ExperimentConfig) -> None:
 
         # log metrics
         metrics_history = {key: jnp.concatenate((metrics_history[key], metrics[key]), axis=0) for key in metrics}
-        evaluations_done += config.metrics_log_period * evaluations_multiplier
+        evaluations_done += config.metrics_log_period * config.total_batch_size
         logged_metrics = {"evaluations": evaluations_done,  "time": timelapse}
 
         for key in metrics_list:

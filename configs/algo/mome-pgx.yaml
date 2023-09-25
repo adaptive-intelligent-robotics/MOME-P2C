@@ -8,4 +8,3 @@ preference_conditioned: False
 mutation_ga_batch_size: 128
 mutation_qpg_batch_size: 128
 inject_actor_batch_size: 0
-num_actor_active_samples: 0

@@ -120,56 +120,9 @@ class MOME:
         
         pc_actor_metrics = {}
         
-        # Evaluate preference conditioned actor and add samples to replay buffer
+        # Evaluate preference conditioned actor
         if self._preference_conditioned:
-            
-            # pg_batch_size = self._emitter.emitters[0].batch_size
-            # ga_batch_size = self._emitter.emitters[0].
-            
-            # pg_genotypes = jax.tree_util.tree_map(
-            #     lambda x : x[:pg_batch_size],
-            #     init_genotypes
-            # )
-            
-            emitter_state, actor_extra_scores, pc_actor_metrics, random_key = self._emitter.evaluate_preference_conditioned_actor(
-                repertoire=repertoire,
-                emitter_state=emitter_state,
-                running_reward_mean=running_reward_mean,
-                running_reward_std=running_reward_var,
-                running_reward_count=running_reward_count,
-                random_key=random_key,
-            )
-            
-            # Update running statistics
-            running_reward_mean = actor_extra_scores["running_reward_mean"]
-            running_reward_var = actor_extra_scores["running_reward_var"]
-            running_reward_count = actor_extra_scores["running_reward_count"]
-                       
-            # Do some policy gradient on random weights to initialise buffers
-            new_genotypes, random_weights, random_key = self._emitter.init_random_pg(
-                emitter_state = emitter_state,
-                genotypes = init_genotypes,
-                random_key = random_key,
-            )
-            emitter_state = self._emitter.init_sampler_state_update(
-                emitter_state=emitter_state,
-                old_fitnesses=fitnesses,
-                weights=random_weights,
-            )
-            
-            # score new fitnesses to record delta fitness from weights 
-            fitnesses, _, _, extra_scores, random_key = self._scoring_function(
-                new_genotypes,
-                running_reward_mean,
-                running_reward_var,
-                running_reward_count,
-                random_key
-            )
-            
-            # Update running statistics
-            running_reward_mean = extra_scores["running_reward_mean"]
-            running_reward_var = extra_scores["running_reward_var"]
-            running_reward_count = extra_scores["running_reward_count"]
+            pc_actor_metrics = emitter_state.emitter_states[0].pc_actor_metrics
             
         # update emitter state
         emitter_state = self._emitter.state_update(
@@ -246,7 +199,6 @@ class MOME:
             random_key
         )
 
-       
         # Update running statistics
         running_reward_mean = extra_scores["running_reward_mean"]
         running_reward_var = extra_scores["running_reward_var"]
@@ -264,26 +216,13 @@ class MOME:
             descriptors=descriptors,
             extra_scores=extra_scores,
         )
-        # # jax.debug.print("OLD:{}", emitter_state.emitter_states[0].sampling_state.old_fitnesses.data)
-        # jax.debug.print("NEW:{}", emitter_state.emitter_states[0].sampling_state.new_fitnesses.data)
-        # jax.debug.print("WEIGHTS:{}", emitter_state.emitter_states[0].sampling_state.weights_history.data)
+ 
         pc_actor_metrics = {}
             
         # Evaluate preference conditioned actor and add samples to replay buffer
         if self._preference_conditioned:
-            emitter_state, actor_extra_scores, pc_actor_metrics, random_key = self._emitter.evaluate_preference_conditioned_actor(
-                repertoire=repertoire,
-                emitter_state=emitter_state,
-                running_reward_mean=running_reward_mean,
-                running_reward_std=running_reward_var,
-                running_reward_count=running_reward_count,
-                random_key=random_key,
-            )
+            pc_actor_metrics = emitter_state.emitter_states[0].pc_actor_metrics
             
-            running_reward_mean = actor_extra_scores["running_reward_mean"]
-            running_reward_var = actor_extra_scores["running_reward_var"]
-            running_reward_count = actor_extra_scores["running_reward_count"]
-
         # update the metrics
         metrics = self._metrics_function(repertoire)
         metrics = self._emitter.update_added_counts(container_addition_metrics, metrics)
