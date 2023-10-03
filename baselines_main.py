@@ -245,7 +245,7 @@ def main(config: ExperimentConfig) -> None:
         
         pga_metrics_fn = partial(
             default_qd_metrics,
-            qd_offset=environments.reward_offset[config.env_name] * config.episode_length,
+            qd_offset=0. * config.episode_length,
         )
         
         pga_emitter_config = PGAMEConfig(
