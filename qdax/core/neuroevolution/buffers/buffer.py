@@ -19,8 +19,6 @@ class Transition(flax.struct.PyTreeNode):
     dones: Done
     truncations: jnp.ndarray  # Indicates if an episode has reached max time step
     actions: Action
-    preference: jnp.ndarray
-    input_preference: jnp.ndarray
 
     @property
     def observation_dim(self) -> int:
@@ -46,15 +44,7 @@ class Transition(flax.struct.PyTreeNode):
             the dimension of the action
         """
         return self.rewards.shape[-1]  # type: ignore
-    
-    @property
-    def preference_dim(self) -> int:
-        """
-        Returns:
-            the dimension of the action
-        """
-        return self.rewards.shape[-1]  # type: ignore
-    
+        
     @property
     def flatten_dim(self) -> int:
         """
@@ -66,7 +56,6 @@ class Transition(flax.struct.PyTreeNode):
             2 * self.observation_dim 
             + self.action_dim 
             + self.reward_dim 
-            + 2 * self.preference_dim #preference and input preference
             + 2
         )
 
@@ -85,8 +74,6 @@ class Transition(flax.struct.PyTreeNode):
                 jnp.expand_dims(self.dones, axis=-1),
                 jnp.expand_dims(self.truncations, axis=-1),
                 self.actions,
-                self.preference,
-                self.input_preference,
             ],
             axis=-1,
         )
@@ -113,8 +100,6 @@ class Transition(flax.struct.PyTreeNode):
         obs_dim = transition.observation_dim
         action_dim = transition.action_dim
         reward_dim = transition.reward_dim
-        preference_dim = transition.preference_dim
-        input_preference_dim = transition.preference_dim
 
 
         obs = flattened_transition[:, :obs_dim]
@@ -129,14 +114,6 @@ class Transition(flax.struct.PyTreeNode):
         actions = flattened_transition[
             :, (2 * obs_dim + reward_dim + 2) : (2 * obs_dim + reward_dim + 2 + action_dim)
         ]
-        preference = flattened_transition[
-            :, (2 * obs_dim + reward_dim + 2 + action_dim) : (2 * obs_dim + reward_dim + 2 + action_dim + preference_dim)
-        ]
-        input_preference = flattened_transition[
-            :, 
-            (2 * obs_dim + reward_dim + 2 + action_dim + preference_dim) 
-            : (2 * obs_dim + reward_dim + 2 + action_dim + preference_dim + input_preference_dim)
-        ]
 
         return cls(
             obs=obs,
@@ -145,8 +122,7 @@ class Transition(flax.struct.PyTreeNode):
             dones=dones,
             truncations=truncations,
             actions=actions,
-            preference=preference,
-            input_preference=input_preference,
+
         )
 
     @classmethod
@@ -169,8 +145,6 @@ class Transition(flax.struct.PyTreeNode):
             dones=jnp.zeros(shape=(1,)),
             truncations=jnp.zeros(shape=(1,)),
             actions=jnp.zeros(shape=(1, action_dim)),
-            preference=jnp.zeros(shape=(1, reward_dim)),
-            input_preference=jnp.zeros(shape=(1, reward_dim)),
         )
         return dummy_transition
 
@@ -198,13 +172,6 @@ class QDTransition(Transition):
         """
         return self.rewards.shape[-1]  # type: ignore
 
-    @property
-    def preference_dim(self) -> int:
-        """
-        Returns:
-            the dimension of the action
-        """
-        return self.rewards.shape[-1]  # type: ignore
     
     @property
     def flatten_dim(self) -> int:
@@ -219,7 +186,6 @@ class QDTransition(Transition):
             + self.reward_dim
             + 2
             + 2 * self.state_descriptor_dim
-            + 2 * self.preference_dim
         )
                 
         return flatten_dim
@@ -241,8 +207,6 @@ class QDTransition(Transition):
                 self.actions,
                 self.state_desc,
                 self.next_state_desc,
-                self.preference,
-                self.input_preference,
             ],
             axis=-1,
         )
@@ -270,7 +234,6 @@ class QDTransition(Transition):
         action_dim = transition.action_dim
         desc_dim = transition.state_descriptor_dim
         reward_dim = transition.reward_dim
-        preference_dim = transition.preference_dim
 
         obs = flattened_transition[:, :obs_dim]
         next_obs = flattened_transition[:, obs_dim : (2 * obs_dim)]
@@ -295,19 +258,6 @@ class QDTransition(Transition):
                 2 * obs_dim + reward_dim + 2 + action_dim + 2 * desc_dim
             ),
         ]
-        preference = flattened_transition[
-            :,
-            (2 * obs_dim + reward_dim + 2 + action_dim + 2 * desc_dim) : (
-                2 * obs_dim + reward_dim + 2 + action_dim + 2 * desc_dim + preference_dim
-            ),
-        ]
-
-        input_preference = flattened_transition[
-            :,
-            (2 * obs_dim + reward_dim + 2 + action_dim + 2 * desc_dim + preference_dim) : (
-                2 * obs_dim + reward_dim + 2 + action_dim + 2 * desc_dim + 2 * preference_dim
-            ),
-        ]
 
         return cls(
             obs=obs,
@@ -318,8 +268,6 @@ class QDTransition(Transition):
             actions=actions,
             state_desc=state_desc,
             next_state_desc=next_state_desc,
-            preference=preference,
-            input_preference=input_preference,
         )
 
     @classmethod
@@ -346,8 +294,6 @@ class QDTransition(Transition):
             actions=jnp.zeros(shape=(1, action_dim)),
             state_desc=jnp.zeros(shape=(1, descriptor_dim)),
             next_state_desc=jnp.zeros(shape=(1, descriptor_dim)),
-            preference=jnp.zeros(shape=(1, descriptor_dim)),
-            input_preference=jnp.zeros(shape=(1, descriptor_dim)),
             
         )
 

@@ -281,15 +281,10 @@ def main(config: ExperimentConfig) -> None:
         )  
         
         if config.algo.pc_actor_uniform_preference_sampling:
-            actor_sampling_fn = partial(uniform_preference_sampling,
-                batch_size=config.algo.inject_actor_batch_size,
-                num_objectives=config.env.num_objective_functions
-            )
+            actor_sampling_fn = uniform_preference_sampling
+                                        
         else:
-            actor_sampling_fn = partial(uniform_and_one_hot_sampling,
-                batch_size=config.algo.inject_actor_batch_size,
-                num_objectives=config.env.num_objective_functions
-            )
+            actor_sampling_fn = uniform_and_one_hot_sampling
             
 
         sampling_config = NaiveSamplingConfig(
@@ -333,8 +328,9 @@ def main(config: ExperimentConfig) -> None:
             policy_network=policy_network,
             pc_actor_network=pc_actor_network,
             pc_actor_metrics_function=pc_actor_metrics,
-            pc_actor_preferences_sample_fn=actor_sampling_fn,
-            sampler=sampler,
+            inject_actor_preferences_sample_fn=actor_sampling_fn,
+            train_pc_networks_preferences_sample_fn=uniform_preference_sampling,
+            pg_sampler=sampler,
             env=env,
             variation_fn=ga_variation_function,
             inject_actor_batch_size=config.algo.inject_actor_batch_size,

@@ -30,8 +30,6 @@ def play_mo_step_fn(
             truncations=next_state.info["truncation"],
             state_desc=state_desc,
             next_state_desc=next_state.info["state_descriptor"],
-            preference=jnp.zeros(next_state.reward.shape) * jnp.nan,
-            input_preference=jnp.zeros(next_state.reward.shape) * jnp.nan,
         )
 
         return next_state, policy_params, random_key, transition
@@ -64,8 +62,6 @@ def play_pc_mo_step_fn(
             truncations=next_state.info["truncation"],
             state_desc=state_desc,
             next_state_desc=next_state.info["state_descriptor"],
-            preference=jnp.zeros(next_state.reward.shape) * jnp.nan,
-            input_preference=jnp.zeros(next_state.reward.shape) * jnp.nan,
         )
 
         return next_state, policy_params, random_key, transition

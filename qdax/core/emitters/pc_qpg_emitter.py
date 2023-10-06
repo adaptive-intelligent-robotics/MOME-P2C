@@ -78,8 +78,9 @@ class PCQualityPGEmitter(Emitter):
         policy_network: nn.Module,
         pc_actor_network: nn.Module,
         pc_actor_metrics_function: Callable[[Preference, Preference], Metrics],
-        pc_actor_preferences_sample_fn:  Callable[[MOMERepertoire, RNGKey], jnp.ndarray],
-        sampler: PreferenceSampler,
+        inject_actor_preferences_sample_fn: Callable[[MOMERepertoire, RNGKey], jnp.ndarray],
+        train_pc_networks_preferences_sample_fn: Callable[[MOMERepertoire, RNGKey], jnp.ndarray],
+        pg_sampler: PreferenceSampler,
         env: QDEnv,
     ) -> None:
         self._config = config
@@ -87,7 +88,8 @@ class PCQualityPGEmitter(Emitter):
         self._policy_network = policy_network
         self._pc_actor_network = pc_actor_network
         self._pc_actor_metrics_function = pc_actor_metrics_function
-        self._pc_actor_preferences_sample_fn = pc_actor_preferences_sample_fn
+        self._inject_actor_preferences_sample_fn = inject_actor_preferences_sample_fn
+        self._train_pc_networks_preferences_sample_fn = train_pc_networks_preferences_sample_fn
 
         # Init Critics
         pc_critic_network = MOQModule(
@@ -97,10 +99,11 @@ class PCQualityPGEmitter(Emitter):
         )
         self._pc_critic_network = pc_critic_network
 
-        # Set up the losses and optimizers - return the opt states
+        # Set up the losses and optimizers - return the opt states        
         self._policy_loss_fn, self._pc_policy_loss_fn, self._critic_loss_fn = make_pc_td3_loss_fn(
             policy_fn=policy_network.apply,
             pc_actor_policy_fn=pc_actor_network.apply,
+            train_pc_networks_preferences_sample_fn=train_pc_networks_preferences_sample_fn,
             pc_critic_fn=pc_critic_network.apply,
             reward_scaling=self._config.reward_scaling,
             discount=self._config.discount,
@@ -120,7 +123,7 @@ class PCQualityPGEmitter(Emitter):
         )
 
         # Set up the preference sampling function
-        self._sampler = sampler
+        self._pg_sampler = pg_sampler
 
     @property
     def batch_size(self) -> int:
@@ -192,13 +195,13 @@ class PCQualityPGEmitter(Emitter):
         )
 
         random_key, subkey = jax.random.split(random_key)
-        sampling_state, random_key = self._sampler.init(
+        sampling_state, random_key = self._pg_sampler.init(
             init_genotypes=init_genotypes,
             random_key=subkey,
         )
         
         # Init dummy actor preferences
-        dummy_preferences, random_key = self._pc_actor_preferences_sample_fn(
+        dummy_preferences, random_key = self._inject_actor_preferences_sample_fn(
             random_key = random_key,
         )
         dummy_metrics = self._pc_actor_metrics_function(dummy_preferences, dummy_preferences)
@@ -242,7 +245,7 @@ class PCQualityPGEmitter(Emitter):
         """
 
         # sample parents
-        parents, preferences, sampling_state = self._sampler.sample(
+        parents, preferences, sampling_state = self._pg_sampler.sample(
             repertoire=repertoire,
             sampling_state=emitter_state.sampling_state,
         )
@@ -304,7 +307,7 @@ class PCQualityPGEmitter(Emitter):
     )-> Genotype:
         
         # generate random weights
-        random_weights, _ = self._pc_actor_preferences_sample_fn(
+        random_weights, _ = self._inject_actor_preferences_sample_fn(
             random_key = random_key,
         )
         
@@ -373,33 +376,14 @@ class PCQualityPGEmitter(Emitter):
         # get the transitions out of the dictionary
         assert "transitions" in extra_scores.keys(), "Missing transitions or wrong key"
         transitions = extra_scores["transitions"]
-
-        episode_length = transitions.preference.shape[1]
         
         actor_input_preferences = emitter_state.actor_preferences
         
         if actor_input_preferences != None:
-            # update actor input preferences
-            pg_preferences = transitions.input_preference[:self._config.qpg_batch_size]
-            ga_preferences = transitions.input_preference[self.batch_size:]
-            tiled_actor_input_preferences = jnp.repeat(
-                actor_input_preferences[:, jnp.newaxis, :],
-                episode_length,
-                axis=1
-            )
-            
-            cat_input_preferences = jnp.concatenate(
-                [pg_preferences,
-                tiled_actor_input_preferences,
-                ga_preferences],
-                axis=0,
-            )
-            transitions = transitions.replace(
-                input_preference = cat_input_preferences
-            )
-            
+            achieved_preferences = extra_scores["achieved_preferences"]
+            actor_achieved_preferences = achieved_preferences[self._config.qpg_batch_size:self.batch_size,:]
+
             # calculate actor metrics:
-            actor_achieved_preferences = transitions.preference[self._config.qpg_batch_size: self.batch_size, 0, :]
             pc_actor_metrics = self._pc_actor_metrics_function(
                 actor_achieved_preferences,
                 actor_input_preferences,
@@ -414,7 +398,7 @@ class PCQualityPGEmitter(Emitter):
 
         # update the sampling state
         pg_fitnesses = fitnesses.at[:self._config.qpg_batch_size].get()
-        sampling_state = self._sampler.state_update(
+        sampling_state = self._pg_sampler.state_update(
             sampling_state=emitter_state.sampling_state,
             batch_new_fitnesses=pg_fitnesses,
         )
@@ -478,13 +462,14 @@ class PCQualityPGEmitter(Emitter):
         )
 
         # Update greedy actor
-        (actor_optimizer_state, actor_params, target_actor_params,) = jax.lax.cond(
+        (actor_optimizer_state, actor_params, target_actor_params, random_key) = jax.lax.cond(
             emitter_state.steps % self._config.policy_delay == 0,
             lambda x: self._update_actor(*x),
             lambda _: (
                 emitter_state.actor_opt_state,
                 emitter_state.actor_params,
                 emitter_state.target_actor_params,
+                emitter_state.random_key,
             ),
             operand=(
                 emitter_state.actor_params,
@@ -492,6 +477,7 @@ class PCQualityPGEmitter(Emitter):
                 emitter_state.target_actor_params,
                 emitter_state.critic_params,
                 transitions,
+                emitter_state.random_key
             ),
         )
 
@@ -555,13 +541,17 @@ class PCQualityPGEmitter(Emitter):
         target_actor_params: Params,
         critic_params: Params,
         transitions: QDTransition,
+        random_key: RNGKey,
     ) -> Tuple[optax.OptState, Params, Params]:
+
+        random_key, subkey = jax.random.split(random_key)
 
         # Update greedy actor
         policy_loss, policy_gradient = jax.value_and_grad(self._pc_policy_loss_fn)(
             actor_params,
             critic_params,
             transitions,
+            subkey,
         )
         (
             policy_updates,
@@ -581,6 +571,7 @@ class PCQualityPGEmitter(Emitter):
             actor_optimizer_state,
             actor_params,
             target_actor_params,
+            random_key
         )
 
     @partial(jax.jit, static_argnames=("self",))

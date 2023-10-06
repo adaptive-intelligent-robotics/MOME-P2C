@@ -99,6 +99,7 @@ def make_td3_loss_fn(
 def make_pc_td3_loss_fn(
     policy_fn: Callable[[Params, Observation], jnp.ndarray],
     pc_actor_policy_fn: Callable[[Params, Observation], jnp.ndarray],
+    train_pc_networks_preferences_sample_fn: Callable[[RNGKey], jnp.ndarray],
     pc_critic_fn: Callable[[Params, Observation, Action], jnp.ndarray],
     reward_scaling: Tuple[float, ...],
     discount: float,
@@ -161,12 +162,16 @@ def make_pc_td3_loss_fn(
         pc_actor_params: Params,
         pc_critic_params: Params,
         transitions: Transition,
+        random_key: RNGKey,
     ) -> jnp.ndarray:
         """Policy loss function for preference conditioned TD3 agent"""
 
+        # Generate preference
+        preference, _ = train_pc_networks_preferences_sample_fn(random_key)
+
         # Action: B x action_dim
         action = pc_actor_policy_fn(pc_actor_params,
-                                    jnp.concatenate([transitions.obs, transitions.input_preference], axis=-1)
+                                    jnp.concatenate([transitions.obs, preference], axis=-1)
         )
 
         # Q-value: n_critics x B x n_objectives
@@ -174,14 +179,14 @@ def make_pc_td3_loss_fn(
             pc_critic_params,
             obs=transitions.obs,
             actions=action,  # type: ignore,
-            preferences=transitions.input_preference,
+            preferences=preference,
         )
 
         # Vector q1 action: 1 x B x n_objectives
         vector_q1_action = jnp.take(q_value, jnp.asarray([0]), axis=0)
 
         # Q1 action: B
-        q1_action = jnp.sum(transitions.input_preference * vector_q1_action, axis=-1)
+        q1_action = jnp.sum(preference * vector_q1_action, axis=-1)
 
         # Policy loss: scalar
         policy_loss = -jnp.mean(q1_action)
@@ -198,6 +203,7 @@ def make_pc_td3_loss_fn(
     ) -> jnp.ndarray:
         """Preference conditioned critics loss function for TD3 agent"""
         # Preferences: batch_size x n_objectives
+        preference, _ = train_pc_networks_preferences_sample_fn(random_key)
 
         # Noise: B x action_dim
         noise = (
@@ -207,7 +213,7 @@ def make_pc_td3_loss_fn(
 
         # Action: B x action_dim
         next_action = (
-            pc_actor_policy_fn(target_pc_actor_policy_params, jnp.concatenate([transitions.next_obs, transitions.input_preference], axis=-1)
+            pc_actor_policy_fn(target_pc_actor_policy_params, jnp.concatenate([transitions.next_obs, preference], axis=-1)
                                ) + noise
         ).clip(-1.0, 1.0)
 
@@ -216,17 +222,17 @@ def make_pc_td3_loss_fn(
             target_pc_critic_params, 
             obs=transitions.next_obs, 
             actions=next_action,
-            preferences=transitions.input_preference
+            preferences=preference,
         )
 
         # Next Q: n_critics x batch_size
-        next_q = jnp.sum(vector_next_q*transitions.input_preference, axis=-1)
+        next_q = jnp.sum(vector_next_q*preference, axis=-1)
         # Next V:  batch_size
         next_v = jnp.min(next_q, axis=0)
         
         # Target Q: batch_size
         target_q = jax.lax.stop_gradient(
-            jnp.sum(transitions.input_preference * transitions.rewards, axis=1)
+            jnp.sum(preference * transitions.rewards, axis=1)
             + (1.0 - transitions.dones) * discount * next_v
         )
 
@@ -235,11 +241,11 @@ def make_pc_td3_loss_fn(
             pc_critic_params,
             obs=transitions.obs,
             actions=transitions.actions,
-            preferences=transitions.input_preference,
+            preferences=preference,
         )
 
         # Q old action: n_critics x batch_size
-        q_old_action = jnp.sum(vector_q_old_action*transitions.input_preference, axis=-1)
+        q_old_action = jnp.sum(vector_q_old_action*preference, axis=-1)
 
         # Q-error: n_critics x batch_size
         q_error = q_old_action - jnp.expand_dims(target_q, 0)

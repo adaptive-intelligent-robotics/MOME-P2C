@@ -24,8 +24,9 @@ class PCMOPGAEmitter(MultiEmitter):
         policy_network: nn.Module,
         pc_actor_network: nn.Module,
         pc_actor_metrics_function: Callable[[Preference, Preference], Metrics],
-        pc_actor_preferences_sample_fn: Callable[[MOMERepertoire, RNGKey], jnp.ndarray],
-        sampler: PreferenceSampler,
+        inject_actor_preferences_sample_fn: Callable[[MOMERepertoire, RNGKey], jnp.ndarray],
+        train_pc_networks_preferences_sample_fn: Callable[[MOMERepertoire, RNGKey], jnp.ndarray],
+        pg_sampler: PreferenceSampler,
         env: QDEnv,
         variation_fn: Callable[[Params, Params, RNGKey], Tuple[Params, RNGKey]],
         inject_actor_batch_size: int,
@@ -35,7 +36,17 @@ class PCMOPGAEmitter(MultiEmitter):
         self._config = config
         self._policy_network = policy_network
         self._pc_actor_network = pc_actor_network
-        self._pc_actor_preferences_sample_fn = pc_actor_preferences_sample_fn
+        
+        inject_actor_preferences_sample_fn =  partial(inject_actor_preferences_sample_fn,
+                batch_size=inject_actor_batch_size,
+                num_objectives=config.num_objective_functions
+        )
+        
+        train_pc_networks_preferences_sample_fn =  partial(train_pc_networks_preferences_sample_fn,
+                batch_size=config.batch_size,
+                num_objectives=config.num_objective_functions
+        )
+        
         self._env = env
         self._variation_fn = variation_fn
 
@@ -73,8 +84,9 @@ class PCMOPGAEmitter(MultiEmitter):
             policy_network=policy_network,
             pc_actor_network=pc_actor_network,
             pc_actor_metrics_function=pc_actor_metrics_function,
-            pc_actor_preferences_sample_fn=pc_actor_preferences_sample_fn,
-            sampler=sampler,
+            inject_actor_preferences_sample_fn=inject_actor_preferences_sample_fn,
+            train_pc_networks_preferences_sample_fn=train_pc_networks_preferences_sample_fn,
+            pg_sampler=pg_sampler,
             env=env
         )
 

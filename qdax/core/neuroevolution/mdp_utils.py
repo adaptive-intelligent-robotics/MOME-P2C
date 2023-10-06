@@ -296,15 +296,7 @@ def scoring_function(
         
     # Calculate preferences based on fitnesses:
     preferences = jnp.clip(preferences, 0.0, 1.0)
-
-    # Add preferences to transitions
-    tiled_preferences = jnp.repeat(
-            preferences[:, jnp.newaxis, :], episode_length, axis=1)
         
-    data = data.replace(preference=tiled_preferences,
-                        input_preference=tiled_preferences
-    )
-
     return (
         fitnesses,
         descriptors,
@@ -316,7 +308,7 @@ def scoring_function(
             "running_reward_mean": new_rm,
             "running_reward_var": new_rv,
             "running_reward_count": new_rc,
-            
+            "achieved_preferences": preferences,
         },
         random_key,
     )
