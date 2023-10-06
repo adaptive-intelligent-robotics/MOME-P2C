@@ -18,7 +18,7 @@ from plotting_functions import plotting_function, pf_plotting_function
 from qdax import environments
 from qdax.core.containers.mapelites_repertoire import compute_cvt_centroids
 from qdax.core.emitters.pga_me_emitter import PGAMEConfig, MOPGAEmitter
-from qdax.core.emitters.pc_mome_pgx_emitter import PCMOPGAEmitter
+from qdax.core.emitters.pc_mopga_emitter import PCMOPGAEmitter
 from qdax.core.mome import MOME
 from qdax.core.neuroevolution.mdp_utils import scoring_function
 from qdax.core.neuroevolution.networks.networks import MLP
@@ -97,7 +97,7 @@ def main(config: ExperimentConfig) -> None:
    # Save params to weights and biases 
     wandb.init(
         # set the wandb project where this run will be logged
-        project=f"PC-MOME-PGX",
+        project=f"MOME-P2C",
         name=f"{config.algo_name}",
         # track hyperparameters and run metadata
         config=OmegaConf.to_container(config, resolve=True),
