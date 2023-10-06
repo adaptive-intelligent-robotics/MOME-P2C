@@ -38,15 +38,15 @@ replay_buffer_size: 1000000
 critic_hidden_layer_size: [256, 256] 
 critic_learning_rate: 0.0003
 greedy_learning_rate: 0.0003
-policy_learning_rate: 0.001
+policy_learning_rate: 0.005
 noise_clip: 0.5 
 policy_noise: 0.2 
 discount: 0.99 
 transitions_batch_size: 256 
 soft_tau_update: 0.005 
 policy_delay: 2
-num_critic_training_steps: 300 
-num_pg_training_steps: 100 
+num_critic_training_steps: 3000 
+num_pg_training_steps: 150 
 
 # Logging parameters
 metrics_log_period: 40
