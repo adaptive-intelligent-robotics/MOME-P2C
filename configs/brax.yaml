@@ -21,7 +21,7 @@ num_centroids: 128
 
 # Policy parameters 
 policy_hidden_layer_sizes: [64, 64] 
-reward_offset: 1.0
+reward_offset: 0.
 
 # Defaults
 defaults:

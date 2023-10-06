@@ -1,0 +1,48 @@
+#!/bin/sh
+
+#PBS -N @job_name
+#PBS -l walltime=@walltime
+#PBS -l select=1:ncpus=@ncpus:mem=@mem@gpu
+#PBS -J 1-10
+
+# Transfer files from server to local disk
+stagein()
+{
+    echo "$(date +"%Y-%m-%d %H:%M:%S") stagein: Make results/ directory on compute node"
+    mkdir -p $HOME/@project_name/@image_directory/results/
+    echo "$(date +"%Y-%m-%d %H:%M:%S") stagein: Create symbolic link to container from server in compute node"
+    ln -s $HOME/@project_name/@image_directory/@image_name
+}
+
+# Execute the run
+runprogram()
+{
+    echo "$(date +"%Y-%m-%d %H:%M:%S") runprogram: Loading Singularity"
+    command -v singularity >/dev/null 2>&1 || { echo >&2 "Singularity is required but it's not found. Attempting to load singularity module.";  module load singularity; }
+
+    echo "$(date +"%Y-%m-%d %H:%M:%S") runprogram: Create symbolic link to results/ directory from server in compute node"
+    ln -s $HOME/@project_name/@image_directory/results
+    APPTAINER_TMP_DIR=$(mktemp -d -p "$(pwd)")
+
+    echo "$(date +"%Y-%m-%d %H:%M:%S") runprogram: ls -lAhF --group-directories-first"
+    ls -lAhF --group-directories-first
+    commit=$(echo @image_directory | cut -d "_" -f 4)
+    echo "Adding WandB API Environment Variable"
+    export SINGULARITYENV_WANDB_API_KEY=46ec90e1edf62d5898b1c81d7d474d9fca48f47d
+
+    echo "$(date +"%Y-%m-%d %H:%M:%S") runprogram: time singularity -d run --bind ./results/:/project/results/ --cleanenv --containall --no-home --nv --workdir $APPTAINER_TMP_DIR @image_name @args +commit=$commit"
+    time singularity -d run --app @job_name --bind ./results/:/project/results/ --cleanenv --containall --no-home --nv --workdir $APPTAINER_TMP_DIR -H /tmp @image_name seed=$RANDOM @args +commit=@commit
+}
+
+# Copy necessary files back to permanent directory
+stageout()
+{
+    echo "$(date +"%Y-%m-%d %H:%M:%S") stageout: Exiting"
+    exit
+}
+
+stagein
+runprogram
+stageout 
+
+exit

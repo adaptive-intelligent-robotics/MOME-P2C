@@ -4,7 +4,10 @@
 last_repertoire
 *logs.csv
 
-# Singularity generated files
+# Apptainer generated files
+apptainer/*.sif
+apptainer/tmp/
+apptainer/var_tmp/
 *.simg
 *.sif
 *.swp
