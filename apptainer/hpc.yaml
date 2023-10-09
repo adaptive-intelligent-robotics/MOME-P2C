@@ -1,0 +1,29 @@
+job_name: pc-mome-pgx
+
+walltime: 07:59:00
+
+nnodes: 1
+ncpus: 4
+mem: 24gb
+ngpus: 1
+gpu_type: RTX6000
+
+queue: null  # -q express -P exp-00097
+njobs: 3
+args:
+  # ant_multi
+  - algo=mome env=ant_multi
+  # - algo=mome-pgx env=ant_multi
+  # - algo=mome-p2c-keep-prefs env=ant_multi
+  # - algo=mome-p2c env=ant_multi
+  # - algo=mome-p2c-actor-random-sampler env=ant_multi
+  # - algo=mome-p2c-no-actor env=ant_multi
+  # - algo=mome-p2c-no-qpg env=ant_multi
+  # - algo=mome-p2c-no-crowding env=ant_multi
+  # - algo=mome-p2c-one-hot env=ant_multi
+
+  # - algo=pga env=ant_multi
+  # - algo=nsga2 env=ant_multi
+  # - algo=spea2 env=ant_multi
+
+  # ...
