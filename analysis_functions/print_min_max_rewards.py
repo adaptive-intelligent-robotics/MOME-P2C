@@ -6,12 +6,13 @@ import seaborn as sns
 
 sns.set_palette("muted")
 
-from typing import List
+from typing import Dict, List
 
 
 def print_env_min_max_rewards(
     env_names: List[str],
-    experiment_metrics_list: List[pd.DataFrame]
+    env_dicts: Dict,
+    all_metrics_df: List[pd.DataFrame]
 )-> None:
 
     print("\n")
@@ -20,42 +21,76 @@ def print_env_min_max_rewards(
     print("---------------------------------------------------------------------------------")
 
 
+    all_min_rewards = {}
+    all_max_rewards = {}
+
     for env_num, env in enumerate(env_names):
 
         print("\n")
         print(f"     ENV: {env}             ")
+        
+        env_reward_labels = env_dicts[env]["reward_labels"]
+        num_rewards = len(env_reward_labels)
 
-        print_min_max_rewards(experiment_metrics_list[env_num])
+        min_rewards, max_rewards = print_min_max_rewards(
+            all_metrics_df[env_num],
+            num_rewards
+        )
+        
+        all_min_rewards[env] = min_rewards
+        all_max_rewards[env] = max_rewards
+        
+    return all_min_rewards, all_max_rewards
 
 
 def print_min_max_rewards(
-    experiment_metrics_list: List[pd.DataFrame]
+    all_metrics_df: List[pd.DataFrame],
+    num_rewards: int,
 ):
 
-    mins_1 = []
-    mins_2 = []
-    maxs_1 = []
-    maxs_2 = []
+    # Create score columns 
+    score_columns = []
+    for reward_i in range(num_rewards):
+        score_columns.append(f"score{reward_i+1}")
 
-    for exp_metrics in experiment_metrics_list:
-        # Sort each replication into columns
+    all_min_scores = []
+    all_max_scores = []
+    
+    for exp_metrics in all_metrics_df:
+        
+        # Create df that is one col for each algorithm
         exp_min_metrics = exp_metrics.obj.groupby(level=0).agg(list)["min_scores"].apply(pd.Series)
         exp_max_metrics = exp_metrics.obj.groupby(level=0).agg(list)["max_scores"].apply(pd.Series)
-
-        # find min and max of each score for each replication
+            
+        # find min and max of each score for each replication (each column in df)
         for col in exp_min_metrics.columns:
-            exp_min_scores = pd.DataFrame(exp_min_metrics[col].apply(lambda x: np.fromstring(str(x).replace('[','').replace(']',''), sep=' ')).to_list(), columns=['score1', 'score2'])
-            exp_max_scores = pd.DataFrame(exp_max_metrics[col].apply(lambda x: np.fromstring(str(x).replace('[','').replace(']',''), sep=' ')).to_list(), columns=['score1', 'score2'])
+            col_min_scores = []
+            col_max_scores = []
+            
+            if num_rewards == 2:
+                exp_min_scores = pd.DataFrame(exp_min_metrics[col].apply(lambda x: np.fromstring(str(x).replace('[','').replace(']',''), sep=' ')).to_list(), columns=score_columns)
+                exp_max_scores = pd.DataFrame(exp_max_metrics[col].apply(lambda x: np.fromstring(str(x).replace('[','').replace(']',''), sep=' ')).to_list(), columns=score_columns)
 
-            min_score1 = exp_min_scores["score1"].min()
-            min_score2 = exp_min_scores["score2"].min()
-            max_score1 = exp_max_scores["score1"].max()
-            max_score2 = exp_max_scores["score2"].max()
+            elif num_rewards == 3:
+                exp_min_scores = pd.DataFrame(exp_min_metrics[col].apply(lambda x: np.fromstring(str(x).replace('[','').replace(',', ' ').replace(']',''), sep=' ')).to_list(), columns=score_columns)
+                exp_max_scores = pd.DataFrame(exp_max_metrics[col].apply(lambda x: np.fromstring(str(x).replace('[','').replace(',', ' ').replace(']',''), sep=' ')).to_list(), columns=score_columns)
+            
+            for reward_i in range(num_rewards):
+                min_score = exp_min_scores[f"score{reward_i+1}"].min()
+                max_score = exp_max_scores[f"score{reward_i+1}"].max()
+            
+                col_min_scores.append(min_score)
+                col_max_scores.append(max_score)
+                
+            all_min_scores.append(col_min_scores)
+            all_max_scores.append(col_max_scores)
 
-            mins_1.append(min_score1)
-            mins_2.append(min_score2)
-            maxs_1.append(max_score1)
-            maxs_2.append(max_score2)
 
-    print(f"Min scores: [{np.min(mins_1)}, {np.min(mins_2)}]",)
-    print(f"Max scores: [{np.max(maxs_1)}, {np.max(maxs_2)}]", )
+    # Find min and max of scores from all replications
+    all_min_scores = np.min(np.array(all_min_scores), axis=0)
+    all_max_scores = np.max(np.array(all_max_scores), axis=0)
+
+    print(f"Min scores: {all_min_scores}")
+    print(f"Max scores: {all_max_scores}")
+        
+    return all_min_scores, all_max_scores

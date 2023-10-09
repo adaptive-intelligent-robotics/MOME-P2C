@@ -61,12 +61,11 @@ def customize_axis(ax: Any) -> Any:
 
 def plot_experiments_grid(parent_dirname: str,
     env_names: List[str],
-    env_labels: Dict,
+    env_dicts: Dict,
     experiment_names: List[str],
-    experiment_labels: Dict,
+    experiment_dicts: Dict,
     grid_plot_metrics_list: List[str],
     grid_plot_metrics_labels: Dict,
-    grid_plot_linestyles: Dict,
     medians: List[pd.DataFrame],
     lqs: List[pd.DataFrame], 
     uqs:  List[pd.DataFrame],
@@ -125,13 +124,12 @@ def plot_experiments_grid(parent_dirname: str,
                 x_range = x_range,
                 metrics_label=metric,
                 experiment_names=experiment_names,
-                experiment_labels = experiment_labels,
-                experiment_linestyles = grid_plot_linestyles,
+                experiment_dicts = experiment_dicts,
                 colour_frame = colour_frame,
             )
 
             if row == 0:
-                ax.ravel()[fig_num].set_title(env_labels[env])
+                ax.ravel()[fig_num].set_title(env_dicts[env]["label"])
             
             if row + 1 == num_rows:
                 ax.ravel()[fig_num].set_xlabel(x_label, fontsize=SMALL_GRID_FONT_SIZE)
@@ -151,9 +149,14 @@ def plot_experiments_grid(parent_dirname: str,
 
     fig.align_ylabels()
     
-    plt.figlegend(experiment_labels.values(), 
+    experiment_labels = []
+        
+    for exp in experiment_names:
+        experiment_labels.append(experiment_dicts[exp]["label"])
+            
+    plt.figlegend(experiment_labels, 
         loc = 'lower center',
-        ncol=int(len(experiment_labels.values())), 
+        ncol=int(len(experiment_labels)), 
         fontsize=LEGEND_FONT_SIZE,
     )
     
@@ -179,8 +182,7 @@ def plot_grid_square(
     x_range: int,
     metrics_label: str,
     experiment_names: List[str],
-    experiment_labels: Dict,
-    experiment_linestyles: Dict,
+    experiment_dicts: Dict,
     colour_frame: pd.DataFrame,
 ):
     """
@@ -190,7 +192,7 @@ def plot_grid_square(
 
     # Find the maximum uq of all experiments in order to scale metrics
     y_max = 0
-    for exp_num, exp_name in enumerate(experiment_labels):
+    for exp_num, exp_name in enumerate(experiment_names):
         final_score = np.array(uq_metrics[exp_num][metrics_label])[-1]
         if final_score > y_max:
             y_max = final_score
@@ -199,7 +201,7 @@ def plot_grid_square(
     exp_palette = colour_frame["Colour"].values
     sns.set_palette(exp_palette)
 
-    for exp_num, exp_name in enumerate(experiment_labels):
+    for exp_num, exp_name in enumerate(experiment_names):
         medians = np.array(median_metrics[exp_num][metrics_label])
         if metrics_label == "coverage":
             scaled_medians = medians
@@ -207,15 +209,15 @@ def plot_grid_square(
             scaled_medians = medians*100/y_max
         ax.plot(x_range, 
             scaled_medians,
-            label=exp_name,
-            linestyle=experiment_linestyles[experiment_names[exp_num]],
+            label=experiment_dicts[exp_name]["label"],
+            linestyle=experiment_dicts[exp_name]["grid_plot_linestyle"],
             color=exp_palette[exp_num]
         )
         # set all scales to be same
         ax.set_ylim([0, 101])
 
     # Do this second so that legend labels are correct
-    for exp_num, exp_name in enumerate(experiment_labels):
+    for exp_num, exp_name in enumerate(experiment_names):
         lqs = np.array(lq_metrics[exp_num][metrics_label])
         uqs = np.array(uq_metrics[exp_num][metrics_label])
 

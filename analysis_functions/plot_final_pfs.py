@@ -7,11 +7,9 @@ import pandas as pd
 import seaborn as sns
 from typing import List, Any, Dict
 from analysis_functions.pairwise_coverage_analysis import get_global_pareto_front
-from envs_setup import get_env_metrics
 from functools import partial
 
-
-from qdax.utils.pareto_front import compute_hypervolume
+from qdax.utils.pareto_front import compute_hypervolume, compute_hypervolume_3d
 
 # CHANGE THESE TO ADJUST APPEARANCE OF PLOT
 FIG_WIDTH = 12
@@ -20,7 +18,7 @@ FIGURE_DPI = 200
 
 # ---- layout of plot ---
 NUM_ROWS = 2
-NUM_COLS = 2
+NUM_COLS = 1
 
 # ---- font sizes and weights ------
 BIG_GRID_FONT_SIZE  = 14 # size of labels for environment
@@ -45,12 +43,10 @@ TOPSPACING = 0.9  # the top of the subplots of the figure
 
 def plot_pfs(parent_dirname: str,
     env_names: List[str],
-    env_labels: Dict,
+    env_dicts: Dict,
     experiment_names: List[str],
-    experiment_labels: Dict,
+    experiment_dicts: Dict,
     num_replications: int=10,
-    reward1_label: str="Reward 1",
-    reward2_label: str="Reward 2",
 ) -> None:
     print("\n")
     print("--------------------------------------------------")
@@ -87,9 +83,9 @@ def plot_pfs(parent_dirname: str,
             for experiment in experiment_names:
                 replication_name = os.listdir(os.path.join(env_dirname, experiment))[replication]
                 replication_dir = os.path.join(env_dirname, experiment, replication_name)
-                fitnesses = jnp.load(os.path.join(replication_dir, "final/repertoire/fitnesses.npy"))
+                fitnesses = jnp.load(os.path.join(replication_dir, "repertoirefitnesses.npy"))
                 exp_rep_global_pf = get_global_pareto_front(fitnesses)
-                exp_rep_max_pf = get_max_pareto_front(fitnesses, env)
+                exp_rep_max_pf = get_max_pareto_front(fitnesses, env_dicts[env]["reference_point"])
                 env_global_pfs[experiment] = exp_rep_global_pf
                 env_max_pfs[experiment] = exp_rep_max_pf
 
@@ -98,59 +94,46 @@ def plot_pfs(parent_dirname: str,
                 
         plot_experiments_pfs_grid(
             env_names,
-            env_labels,
+            env_dicts,
             experiment_names,
-            experiment_labels,
+            experiment_dicts,
             replication_global_pfs,
             suptitle="Global Pareto Fronts",
             replication=replication,
             save_dir=_global_pfs_dir,
-            reward1_label=reward1_label,
-            reward2_label=reward2_label,
         )
-        
+    
         plot_experiments_pfs_grid(
             env_names,
-            env_labels,
+            env_dicts,
             experiment_names,
-            experiment_labels,
+            experiment_dicts,
             replication_max_pfs,
             suptitle="Max Pareto Fronts",
             replication=replication,
             save_dir=_max_pfs_dir,
-            reward1_label=reward1_label,
-            reward2_label=reward2_label,
         )
 
-        plot_max_and_global_pfs(
-            env_names,
-            env_labels,
-            experiment_names,
-            experiment_labels,
-            replication_global_pfs,
-            replication_max_pfs,
-            replication=replication,
-            save_dir=_global_max_pfs_dir,  
-            reward1_label=reward1_label,
-            reward2_label=reward2_label,      
-        )
 
 def plot_experiments_pfs_grid(
     env_names: List[str],
-    env_labels: Dict,
+    env_dicts: Dict,
     experiment_names: List[str],
-    experiment_labels: Dict,
+    experiment_dicts: Dict,
     replication_pfs: Dict,
     suptitle: str,
     replication: int,
     save_dir: str,
-    reward1_label: str,
-    reward2_label: str,
 ) -> None:
 
     num_envs = len(replication_pfs.keys())
     num_exps = len(replication_pfs[list(replication_pfs.keys())[0]].keys())
 
+    experiment_labels = []
+    
+    for exp_name in experiment_names:
+        experiment_labels.append(experiment_dicts[exp_name]["label"])
+        
     # Create color palette
     experiment_colours = sns.color_palette(COLOUR_PALETTE, len(experiment_names))
     colour_frame = pd.DataFrame(data={"Label": experiment_names, "Colour": experiment_colours})
@@ -172,21 +155,27 @@ def plot_experiments_pfs_grid(
     )
 
     for env_num, env_fig in enumerate(ax.ravel()):
+        
+        env_num_objectives = len(env_dicts[env_names[env_num]]["reward_labels"])
+        
+        if env_num_objectives == 3:
+            env_fig.remove()
+            env_fig = fig.add_subplot(NUM_ROWS, NUM_COLS, env_num+1, projection="3d")  
+        
         env_fig = plot_grid_square(env_fig,
-            env = env_labels[env_names[env_num]],
+            env_dict = env_dicts[env_names[env_num]],
             experiment_names = experiment_names,
-            experiment_labels = experiment_labels,
+            experiment_dicts = experiment_dicts,
             env_pfs = replication_pfs[env_names[env_num]],
             colour_frame = colour_frame,
-            reward1_label = reward1_label,
-            reward2_label = reward2_label,
         )
         env_fig.spines["top"].set_visible(False)
         env_fig.spines["right"].set_visible(False)
 
     handles, labels = ax.ravel()[-1].get_legend_handles_labels()
     
-    plt.figlegend(experiment_labels.values(), 
+        
+    plt.figlegend(experiment_labels, 
         loc = 'lower center',
         ncol=len(experiment_labels), 
         fontsize=LEGEND_FONT_SIZE,
@@ -211,108 +200,14 @@ def plot_experiments_pfs_grid(
 
 
 
-def plot_max_and_global_pfs(
-    env_names: List[str],
-    env_labels: Dict,
-    experiment_names: List[str],
-    experiment_labels: Dict,
-    replication_global_pfs: Dict,
-    replication_max_pfs: Dict,
-    replication: int,
-    save_dir: str,
-    reward1_label: str,
-    reward2_label: str,
-) -> None:
-
-    num_envs = len(replication_global_pfs.keys())
-
-     # Create color palette
-    experiment_colours = sns.color_palette(COLOUR_PALETTE, len(experiment_names))
-    colour_frame = pd.DataFrame(data={"Label": experiment_names, "Colour": experiment_colours})
-
-    params = {
-        'pdf.fonttype': 42,
-        'ps.fonttype': 42,
-        'axes.titlesize': BIG_GRID_FONT_SIZE,
-        'axes.titleweight': TITLE_FONT_WEIGHT,
-        'figure.dpi': FIGURE_DPI,
-    }
-
-    plt.rcParams.update(params)
-
-    fig, ax = plt.subplots(
-        figsize=(FIG_WIDTH*num_envs/2, FIG_HEIGHT),
-        nrows=2, 
-        ncols=num_envs,
-    )
-
-    for row in range(2):
-        for env_num, env_name in enumerate(env_labels):
-            fig_num = row*num_envs + env_num
-            # Plot global hypervolumes on first row
-            if row == 0:
-                ax.ravel()[fig_num] = plot_grid_square(ax.ravel()[fig_num],
-                    env = env_labels[env_names[env_num]],
-                    experiment_names = experiment_names,
-                    experiment_labels = experiment_labels,
-                    env_pfs = replication_global_pfs[env_names[env_num]],
-                    colour_frame = colour_frame,
-                    reward1_label = reward1_label,
-                    reward2_label = reward2_label,
-                )
-                if env_num == 0:
-                    ax.ravel()[fig_num].set_ylabel("Global Pareto Fronts", 
-                        fontsize=BIG_GRID_FONT_SIZE,
-                        fontweight=TITLE_FONT_WEIGHT
-                    )    
-
-            else:
-            # Plot max hypervolumes on second row
-                ax.ravel()[fig_num] = plot_grid_square(ax.ravel()[fig_num],
-                    env = None, # dont use title on second row
-                    experiment_names = experiment_names,
-                    experiment_labels = experiment_labels,
-                    env_pfs = replication_global_pfs[env_names[env_num]],
-                    colour_frame = colour_frame,
-                    reward1_label = reward1_label,
-                    reward2_label = reward2_label,
-                )       
-
-
-                if env_num == 0:
-                    ax.ravel()[fig_num].set_ylabel("Max Pareto Fronts", 
-                        fontsize=BIG_GRID_FONT_SIZE,
-                        fontweight=TITLE_FONT_WEIGHT
-                    )          
-
-
-    handles, labels = ax.ravel()[-1].get_legend_handles_labels()
-    
-    plt.figlegend(experiment_labels.values(), 
-        loc = 'lower center',
-        ncol=len(experiment_labels.values()), 
-        fontsize=LEGEND_FONT_SIZE,
-        markerscale=LEGEND_DOT_SIZE,
-    )
-
-    plt.subplots_adjust(
-        right = RIGHTSPACING,    
-    )    
-
-    plt.savefig(os.path.join(save_dir, f"pfs_rep_{replication+1}"), bbox_inches='tight')
-    plt.close()
-
-
 
 def plot_grid_square(
     env_ax: plt.Axes,
-    env: str,
+    env_dict: Dict,
     env_pfs: List[jnp.array],
     experiment_names:  List[str],
-    experiment_labels: Dict,
+    experiment_dicts: Dict,
     colour_frame: pd.DataFrame,
-    reward1_label: str,
-    reward2_label: str,
 ):
     """
     Plots one subplot of grid
@@ -321,37 +216,57 @@ def plot_grid_square(
     # Getting the correct color palette
     exp_palette = colour_frame["Colour"].values
     sns.set_palette(exp_palette)
+    
+    num_objectives = len(env_dict["reward_labels"])
 
     for exp_num, exp_name in enumerate(experiment_names):
-        env_ax.scatter(
-            env_pfs[exp_name][:,0], # first fitnesses
-            env_pfs[exp_name][:,1], # second fitnesses
-            label=experiment_labels[exp_name],
-            s=SCATTER_DOT_SIZE,
-            c=exp_palette[exp_num]
-        )
-        env_ax.set_xlabel(reward1_label)
-        env_ax.set_ylabel(reward2_label)        
+        
+        if num_objectives == 2: 
+            env_ax.scatter(
+                env_pfs[exp_name][:,0], # first fitnesses
+                env_pfs[exp_name][:,1], # second fitnesses
+                label=experiment_dicts[exp_name]["label"],
+                s=SCATTER_DOT_SIZE,
+                c=exp_palette[exp_num]
+            )
+            env_ax.set_xlabel(env_dict["reward_labels"][0])
+            env_ax.set_ylabel(env_dict["reward_labels"][1])
+        
+        elif num_objectives == 3:
+            env_ax.scatter(
+                env_pfs[exp_name][:,0], # first fitnesses
+                env_pfs[exp_name][:,1], # second fitnesses
+                env_pfs[exp_name][:,2], # third fitnesses
+                label=experiment_dicts[exp_name]["label"],
+                s=SCATTER_DOT_SIZE,
+                c=exp_palette[exp_num]
+            )
+            env_ax.set_xlabel(env_dict["reward_labels"][0])
+            env_ax.set_ylabel(env_dict["reward_labels"][1])
+            env_ax.set_zlabel(env_dict["reward_labels"][2])
 
-        if env:
-            env_ax.set_title(env)
+        
+        env_ax.set_title(env_dict["label"])
 
     return env_ax
 
 
 
 
-def get_max_pareto_front(fitnesses,
-    env_name,
+def get_max_pareto_front(
+    fitnesses,
+    reference_point,
 ):
 
-    num_objectives = fitnesses.shape[0]
-    # get env reference point
-    env_metrics = get_env_metrics(env_name)
-    reference_point = env_metrics["min_rewards"]
+    num_objectives = fitnesses.shape[-1]
 
     # recompute hypervolumes
-    hypervolume_function = partial(compute_hypervolume, reference_point=reference_point)
+    if num_objectives == 2:
+        hypervolume_function = partial(compute_hypervolume, reference_point=jnp.array(reference_point))
+        
+    elif num_objectives == 3:
+        hypervolume_function = partial(compute_hypervolume_3d, reference_point=jnp.array(reference_point))
+        
     hypervolumes = jax.vmap(hypervolume_function)(fitnesses)  # num centroids
 
     # mask empty hypervolumes
