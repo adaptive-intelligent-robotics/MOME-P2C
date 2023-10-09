@@ -1,139 +1,161 @@
-Bootstrap: library
-From: airl_lab/default/airl_env:qdax_f57720d0
+Bootstrap: docker
+From: ubuntu:22.04
 
 %labels
-    Author adaptive.intelligent.robotics@gmail.com
-    Version v0.0.1
+	Author adaptive.intelligent.robotics@gmail.com
 
-%files
-    requirements.txt /
+%help
+	Preference-Conditioned MOME-PGX
 
 %environment
-   export PYTHONPATH=$PYTHONPATH:/workspace/lib/python3.8/site-packages/
-   export LD_LIBRARY_PATH="/workspace/lib:$LD_LIBRARY_PATH"
-   export PATH=$PATH:/usr/local/go/bin
+	# Activate virtual environment permanently
+	export VIRTUAL_ENV="/venv"
+	export _OLD_VIRTUAL_PATH="$PATH"
+	export PATH="$VIRTUAL_ENV/bin:$PATH"
+
+	# System
+	export TZ=Europe/London
+	export OPENBLAS_NUM_THREADS=1
 
 %post
-   export LD_LIBRARY_PATH="/workspace/lib:$LD_LIBRARY_PATH"
+	export DEBIAN_FRONTEND=noninteractive
 
-   # Update
-   apt-get update -y
-   pip3 install --upgrade pip
+	# Update and install required libraries
+	apt update
+	apt install -y wget git software-properties-common tmux
 
-   # Install
-   pip3 install -r /requirements.txt
-   DEBIAN_FRONTEND=noninteractive apt-get install -y python3-git python3-matplotlib python3-pip libsdl1.2-dev libomp-dev
-   pip3 install jaxlib==0.3.15+cuda11_cudnn82 -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
-   apt-get install -y python3-tk
-   pip3 install pymoo==0.6.0.1
+	# Install Python
+	add-apt-repository ppa:deadsnakes/ppa
+	apt install -y python3.10 python3.10-venv
 
-   # Create working directory
-   mkdir -p /project/
+	# Create a virtual environment
+	python3.10 -m venv /venv
+	. /venv/bin/activate
+	python -m ensurepip
+	pip install --upgrade pip
 
-   # Enter working directory
-   cd /project/
-   
-   git clone https://gitlab.doc.ic.ac.uk/AIRL/research_projects/hannah_janmohamed/pc-mome-pgx .
-   git checkout $SINGULARITY_COMMIT
-    
+	# Install libraries
+	pip install --upgrade "jax[cuda11_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+	pip install pymoo==0.6.0.1
+
+	# Create working directory
+	mkdir -p /project/
+
+	# Enter working directory
+	cd /project/
+
+	git clone https://gitlab.doc.ic.ac.uk/AIRL/research_projects/hannah_janmohamed/pc-mome-pgx /project/
+	git checkout $COMMIT
+
+	# Install requirements
+	pip install -r requirements.txt
+
+	# Set up tmux
+	cat <<- "END" >> ~/.bashrc
+	if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ]; then
+		exec tmux new-session -A -s $(hostname)
+	fi
+	END
+	cat <<- "END" >> ~/.tmux.conf
+	set -g default-terminal "xterm-256color"
+	set -g mouse on
+	END
+
+%runscript
 
 %apprun mome
-    cd /project/
-    # Running the script
-    echo
-    echo "Running python3 main.py algo=mome "$@" "
-    echo
-    python3 main.py algo=mome "$@"
+	cd /project/
+	# Running the script
+	echo
+	echo "Running python3 main.py algo=mome "$@" "
+	echo
+	python3 main.py algo=mome "$@"
 
 %apprun mome-pgx
-    cd /project/
-    # Running the script
-    echo
-    echo "Running python3 main.py algo=mome-pgx "$@" "
-    echo
-    python3 main.py algo=mome-pgx "$@"
+	cd /project/
+	# Running the script
+	echo
+	echo "Running python3 main.py algo=mome-pgx "$@" "
+	echo
+	python3 main.py algo=mome-pgx "$@"
 
 %apprun mome-p2c-keep-prefs
-    cd /project/
-    # Running the script
-    echo
-    echo "Running python3 main.py algo=mome-p2c-keep-prefs "$@" "
-    echo
-    python3 main.py algo=mome-p2c-keep-prefs "$@"
+	cd /project/
+	# Running the script
+	echo
+	echo "Running python3 main.py algo=mome-p2c-keep-prefs "$@" "
+	echo
+	python3 main.py algo=mome-p2c-keep-prefs "$@"
 
 
 %apprun mome-p2c
-    cd /project/
-    # Running the script
-    echo
-    echo "Running python3 main.py algo=mome-p2c "$@" "
-    echo
-    python3 main.py algo=mome-p2c "$@"
+	cd /project/
+	# Running the script
+	echo
+	echo "Running python3 main.py algo=mome-p2c "$@" "
+	echo
+	python3 main.py algo=mome-p2c "$@"
 
 %apprun mome-p2c-actor-random-sampler
-    cd /project/
-    # Running the script
-    echo
-    echo "Running python3 main.py algo=mome-p2c-actor-random-sampler "$@" "
-    echo
-    python3 main.py algo=mome-p2c-actor-random-sampler "$@"
+	cd /project/
+	# Running the script
+	echo
+	echo "Running python3 main.py algo=mome-p2c-actor-random-sampler "$@" "
+	echo
+	python3 main.py algo=mome-p2c-actor-random-sampler "$@"
 
 %apprun mome-p2c-no-actor
-    cd /project/
-    # Running the script
-    echo
-    echo "Running python3 main.py algo=mome-p2c-no-actor "$@" "
-    echo
-    python3 main.py algo=mome-p2c-no-actor "$@"
+	cd /project/
+	# Running the script
+	echo
+	echo "Running python3 main.py algo=mome-p2c-no-actor "$@" "
+	echo
+	python3 main.py algo=mome-p2c-no-actor "$@"
 
 %apprun mome-p2c-no-qpg
-    cd /project/
-    # Running the script
-    echo
-    echo "Running python3 main.py algo=mome-p2c-no-qpg "$@" "
-    echo
-    python3 main.py algo=mome-p2c-no-qpg "$@"
+	cd /project/
+	# Running the script
+	echo
+	echo "Running python3 main.py algo=mome-p2c-no-qpg "$@" "
+	echo
+	python3 main.py algo=mome-p2c-no-qpg "$@"
 
 %apprun mome-p2c-no-crowding
-    cd /project/
-    # Running the script
-    echo
-    echo "Running python3 main.py algo=mome-p2c-no-crowding "$@" "
-    echo
-    python3 main.py algo=mome-p2c-no-crowding "$@"
+	cd /project/
+	# Running the script
+	echo
+	echo "Running python3 main.py algo=mome-p2c-no-crowding "$@" "
+	echo
+	python3 main.py algo=mome-p2c-no-crowding "$@"
 
 %apprun mome-p2c-one-hot
-    cd /project/
-    # Running the script
-    echo
-    echo "Running python3 main.py algo=mome-p2c-one-hot "$@" "
-    echo
-    python3 main.py algo=mome-p2c-one-hot "$@"
-
+	cd /project/
+	# Running the script
+	echo
+	echo "Running python3 main.py algo=mome-p2c-one-hot "$@" "
+	echo
+	python3 main.py algo=mome-p2c-one-hot "$@"
 
 %apprun pga
-    cd /project/
-    # Running the script
-    echo
-    echo "Running python3 baselines_main.py algo=pga "$@" "
-    echo
-    python3 baselines_main.py algo=pga "$@"
-
+	cd /project/
+	# Running the script
+	echo
+	echo "Running python3 baselines_main.py algo=pga "$@" "
+	echo
+	python3 baselines_main.py algo=pga "$@"
 
 %apprun nsga2
-    cd /project/
-    # Running the script
-    echo
-    echo "Running python3 baselines_main.py algo=nsga2 "$@" "
-    echo
-    python3 baselines_main.py algo=nsga2 "$@"
-    
+	cd /project/
+	# Running the script
+	echo
+	echo "Running python3 baselines_main.py algo=nsga2 "$@" "
+	echo
+	python3 baselines_main.py algo=nsga2 "$@"
 
 %apprun spea2
-    cd /project/
-    # Running the script
-    echo
-    echo "Running python3 baselines_main.py algo=spea2 "$@" "
-    echo
-    python3 baselines_main.py algo=spea2 "$@"
-    
+	cd /project/
+	# Running the script
+	echo
+	echo "Running python3 baselines_main.py algo=spea2 "$@" "
+	echo
+	python3 baselines_main.py algo=spea2 "$@"
