@@ -13,17 +13,17 @@ njobs: 3
 args:
   # ant_multi
   - algo=mome env=ant_multi
-  # - algo=mome-pgx env=ant_multi
-  # - algo=mome-p2c-keep-prefs env=ant_multi
-  # - algo=mome-p2c env=ant_multi
-  # - algo=mome-p2c-actor-random-sampler env=ant_multi
-  # - algo=mome-p2c-no-actor env=ant_multi
-  # - algo=mome-p2c-no-qpg env=ant_multi
-  # - algo=mome-p2c-no-crowding env=ant_multi
-  # - algo=mome-p2c-one-hot env=ant_multi
+  - algo=mome-pgx env=ant_multi
+  - algo=mome-p2c-keep-prefs env=ant_multi
+  - algo=mome-p2c env=ant_multi
+  - algo=mome-p2c-actor-random-sampler env=ant_multi
+  - algo=mome-p2c-no-actor env=ant_multi
+  - algo=mome-p2c-no-qpg env=ant_multi
+  - algo=mome-p2c-no-crowding env=ant_multi
+  - algo=mome-p2c-one-hot env=ant_multi
 
-  # - algo=pga env=ant_multi
-  # - algo=nsga2 env=ant_multi
-  # - algo=spea2 env=ant_multi
+  - algo=pga env=ant_multi
+  - algo=nsga2 env=ant_multi
+  - algo=spea2 env=ant_multi
 
   # ...
