@@ -1,5 +1,5 @@
-Bootstrap: docker
-From: ubuntu:22.04
+Bootstrap: library
+From: airl_lab/default/airl_env:qdax_f57720d0
 
 %labels
 	Author adaptive.intelligent.robotics@gmail.com

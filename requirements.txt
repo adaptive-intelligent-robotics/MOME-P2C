@@ -3,6 +3,7 @@ scipy
 jax
 flax
 scikit-learn
+brax==0.0.15
 seaborn
 ipython
 ipykernel
