@@ -1,6 +1,6 @@
 hydra:
     run:
-        dir: ./results/${env_name}/${algo_name}/${now:%Y-%m-%d_%H%M%S}_${seed}
+        dir: ./output/${env_name}/${algo_name}/${now:%Y-%m-%d_%H%M%S}_${seed}
 
 
 #Env config
