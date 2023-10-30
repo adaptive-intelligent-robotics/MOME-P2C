@@ -18,7 +18,7 @@ FIGURE_DPI = 200
 
 # ---- layout of plot ---
 NUM_ROWS = 2
-NUM_COLS = 1
+NUM_COLS = 3
 
 # ---- font sizes and weights ------
 BIG_GRID_FONT_SIZE  = 14 # size of labels for environment

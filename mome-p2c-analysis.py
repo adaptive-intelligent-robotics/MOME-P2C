@@ -12,10 +12,10 @@ experiment_names = [
 
     # baselines
     "mome-pgx",
-    # "mome",
-    #"pga",
-    #"nsga2",
-    #"spea2",
+    "mome",
+    "pga",
+    "nsga2",
+    "spea2",
 
 ]
 
@@ -23,10 +23,10 @@ experiment_names = [
 env_names=[
     "ant_multi",
     "ant_tri",
-    # "halfcheetah_multi",
-    # "hopper_multi",
-    # "hopper_tri",
-    # "walker2d_multi",
+    "halfcheetah_multi",
+    "hopper_multi",
+    "hopper_tri",
+    "walker2d_multi",
 ]
 
 
@@ -76,8 +76,8 @@ experiment_dicts = {
     
     ## ABLATIONS
     
-    "mome-p2c-no-actor": {
-        "label": "No-Actor-Injection",
+    "mome-p2c-inject-actor": {
+        "label": "Inject-Actor",
         "emitter_names": ["emitter_actor_inject_count", "emitter_ga_count", "emitter_pg_count"],
         "emitter_labels": ["Actor Injection Emitter", "GA Emitter", "PG Emitter"],
         "grid_plot_linestyle": "dashed",
@@ -149,14 +149,14 @@ env_dicts = {
     },
     "hopper_tri": {
         "label": "Hopper-3",
-        "reward_labels": ["Forward", "Energy"],
+        "reward_labels": ["Forward", "Energy", "Torso Height"],
         "action_size":3,
         "observation_size":11,
         "reference_point": [-750, -3, 0],
     },
     "walker2d_multi": {
         "label": "Walker-2",
-        "reward_labels": ["Forward", "Energy", "Torso Height"],
+        "reward_labels": ["Forward", "Energy"],
         "action_size":6,
         "observation_size":17,
         "reference_point": [-210, -15]
@@ -203,22 +203,21 @@ if __name__ == "__main__":
         env_dicts=env_dicts,
         experiment_names=experiment_names,
         experiment_dicts=experiment_dicts,
-        num_replications=5,
+        num_replications=20,
         num_iterations=4000,
         episode_length=1000,
         batch_size=256
     )
     
-    # analysis_helper.plot_grid(
-    #     grid_plot_metrics_list,
-    #     grid_plot_metrics_labels,
-    # )
+    analysis_helper.plot_grid(
+        grid_plot_metrics_list,
+        grid_plot_metrics_labels,
+    )
 
-    # analysis_helper.sparsity_analysis()
+    analysis_helper.calculate_wilcoxon(
+        p_value_metrics_list
+    )
     
-    # analysis_helper.calculate_wilcoxon(
-    #     p_value_metrics_list
-    # )
-
+    analysis_helper.sparsity_analysis()
 
     analysis_helper.plot_final_pfs()

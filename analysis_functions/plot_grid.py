@@ -8,7 +8,7 @@ from typing import List, Any, Dict
 
 # CHANGE THESE TO ADJUST APPEARANCE OF PLOT
 FIG_WIDTH = 20
-FIG_HEIGHT = 10
+FIG_HEIGHT = 8
 FIGURE_DPI = 200
 
 # ---- font sizes and weights ------
