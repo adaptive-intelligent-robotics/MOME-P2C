@@ -33,7 +33,4 @@ From: airl_lab/default/airl_env:qdax_f57720d0
 
 %runscript
 	# Run main
-	echo
-	echo "Running python3 main.py "$@""
-	echo
-	python3 /project/main.py "@"
+	python3 /project/main.py "$@"

@@ -58,7 +58,7 @@ class ExperimentConfig:
 
 @hydra.main(config_path="configs/", config_name="brax")
 def main(config: ExperimentConfig) -> None:
-    if config.algo.name in ["mome", "mome-pgx", "mome-p2c-keep-prefs", "mome-p2c", "mome-p2c-actor-random-sampler", "mome-p2c-no-actor", "mome-p2c-no-qpg", "mome-p2c-no-crowding", "mome-p2c-one-hot"]:
+    if config.algo.name in ["mome", "mome-pgx", "mome-p2c-keep-prefs", "mome-p2c", "mome-p2c-actor-random-sampler", "mome-p2c-inject-actor", "mome-p2c-no-qpg", "mome-p2c-no-crowding", "mome-p2c-one-hot"]:
         import main_mome as main
     elif config.algo.name in ["pga", "nsga2", "spea2"]:
         import main_other as main
