@@ -46,7 +46,7 @@ def plot_pfs(parent_dirname: str,
     env_dicts: Dict,
     experiment_names: List[str],
     experiment_dicts: Dict,
-    num_replications: int=10,
+    num_replications: int=20,
 ) -> None:
     print("\n")
     print("--------------------------------------------------")
@@ -87,6 +87,10 @@ def plot_pfs(parent_dirname: str,
                     fitnesses = jnp.load(os.path.join(replication_dir, "repertoirefitnesses.npy"))
                     exp_rep_global_pf = get_global_pareto_front(fitnesses)
                     exp_rep_max_pf = get_max_pareto_front(fitnesses, env_dicts[env]["reference_point"])
+                    if len(exp_rep_global_pf.shape) == 1:
+                        exp_rep_global_pf = jnp.expand_dims(exp_rep_global_pf, axis=0)
+                    if len(exp_rep_max_pf.shape) == 1:
+                        exp_rep_max_pf = jnp.expand_dims(exp_rep_max_pf, axis=0)
                     env_global_pfs[experiment] = exp_rep_global_pf
                     env_max_pfs[experiment] = exp_rep_max_pf
 
