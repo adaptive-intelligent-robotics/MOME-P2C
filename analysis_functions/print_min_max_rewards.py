@@ -12,7 +12,7 @@ from typing import Dict, List
 def print_env_min_max_rewards(
     env_names: List[str],
     env_dicts: Dict,
-    all_metrics_df: List[pd.DataFrame]
+    all_metrics_df: Dict,
 )-> None:
 
     print("\n")
@@ -24,7 +24,7 @@ def print_env_min_max_rewards(
     all_min_rewards = {}
     all_max_rewards = {}
 
-    for env_num, env in enumerate(env_names):
+    for env in env_names:
 
         print("\n")
         print(f"     ENV: {env}             ")
@@ -33,7 +33,7 @@ def print_env_min_max_rewards(
         num_rewards = len(env_reward_labels)
 
         min_rewards, max_rewards = print_min_max_rewards(
-            all_metrics_df[env_num],
+            all_metrics_df[env],
             num_rewards
         )
         
@@ -44,7 +44,7 @@ def print_env_min_max_rewards(
 
 
 def print_min_max_rewards(
-    all_metrics_df: List[pd.DataFrame],
+    all_metrics_df: Dict,
     num_rewards: int,
 ):
 
@@ -56,7 +56,7 @@ def print_min_max_rewards(
     all_min_scores = []
     all_max_scores = []
     
-    for exp_metrics in all_metrics_df:
+    for exp_metrics in all_metrics_df.values():
         
         # Create df that is one col for each algorithm
         exp_min_metrics = exp_metrics.obj.groupby(level=0).agg(list)["min_scores"].apply(pd.Series)

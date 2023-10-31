@@ -10,6 +10,7 @@ from typing import List, Dict, Tuple
 def wilcoxon_analysis(
     parent_dirname: str,
     env_names: List[str],
+    env_dicts: Dict,
     experiment_names: List[str],
     metrics_list: List[str],
     num_replications: int
@@ -39,8 +40,9 @@ def wilcoxon_analysis(
             all_final_metrics = {}
 
             for experiment in experiment_names:
-                experiment_final_scores = get_final_metrics(dirname, experiment, metric)
-                all_final_metrics[experiment] = experiment_final_scores[:num_replications]
+                if experiment not in env_dicts[env]["exceptions"]:
+                    experiment_final_scores = get_final_metrics(dirname, experiment, metric)
+                    all_final_metrics[experiment] = experiment_final_scores[:num_replications]
 
 
             all_final_metrics_df = pd.DataFrame(all_final_metrics)

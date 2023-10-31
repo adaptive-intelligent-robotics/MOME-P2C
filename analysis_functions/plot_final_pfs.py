@@ -81,13 +81,14 @@ def plot_pfs(parent_dirname: str,
             env_max_pfs = {}
 
             for experiment in experiment_names:
-                replication_name = os.listdir(os.path.join(env_dirname, experiment))[replication]
-                replication_dir = os.path.join(env_dirname, experiment, replication_name)
-                fitnesses = jnp.load(os.path.join(replication_dir, "repertoirefitnesses.npy"))
-                exp_rep_global_pf = get_global_pareto_front(fitnesses)
-                exp_rep_max_pf = get_max_pareto_front(fitnesses, env_dicts[env]["reference_point"])
-                env_global_pfs[experiment] = exp_rep_global_pf
-                env_max_pfs[experiment] = exp_rep_max_pf
+                if experiment not in env_dicts[env]["exceptions"]:
+                    replication_name = os.listdir(os.path.join(env_dirname, experiment))[replication]
+                    replication_dir = os.path.join(env_dirname, experiment, replication_name)
+                    fitnesses = jnp.load(os.path.join(replication_dir, "repertoirefitnesses.npy"))
+                    exp_rep_global_pf = get_global_pareto_front(fitnesses)
+                    exp_rep_max_pf = get_max_pareto_front(fitnesses, env_dicts[env]["reference_point"])
+                    env_global_pfs[experiment] = exp_rep_global_pf
+                    env_max_pfs[experiment] = exp_rep_max_pf
 
             replication_global_pfs[env] = env_global_pfs
             replication_max_pfs[env] = env_max_pfs
@@ -221,32 +222,33 @@ def plot_grid_square(
 
     for exp_num, exp_name in enumerate(experiment_names):
         
-        if num_objectives == 2: 
-            env_ax.scatter(
-                env_pfs[exp_name][:,0], # first fitnesses
-                env_pfs[exp_name][:,1], # second fitnesses
-                label=experiment_dicts[exp_name]["label"],
-                s=SCATTER_DOT_SIZE,
-                c=exp_palette[exp_num]
-            )
-            env_ax.set_xlabel(env_dict["reward_labels"][0])
-            env_ax.set_ylabel(env_dict["reward_labels"][1])
-        
-        elif num_objectives == 3:
-            env_ax.scatter(
-                env_pfs[exp_name][:,0], # first fitnesses
-                env_pfs[exp_name][:,1], # second fitnesses
-                env_pfs[exp_name][:,2], # third fitnesses
-                label=experiment_dicts[exp_name]["label"],
-                s=SCATTER_DOT_SIZE,
-                c=exp_palette[exp_num]
-            )
-            env_ax.set_xlabel(env_dict["reward_labels"][0])
-            env_ax.set_ylabel(env_dict["reward_labels"][1])
-            env_ax.set_zlabel(env_dict["reward_labels"][2])
+        if exp_name not in env_dict["exceptions"]:
+            if num_objectives == 2: 
+                env_ax.scatter(
+                    env_pfs[exp_name][:,0], # first fitnesses
+                    env_pfs[exp_name][:,1], # second fitnesses
+                    label=experiment_dicts[exp_name]["label"],
+                    s=SCATTER_DOT_SIZE,
+                    c=exp_palette[exp_num]
+                )
+                env_ax.set_xlabel(env_dict["reward_labels"][0])
+                env_ax.set_ylabel(env_dict["reward_labels"][1])
+            
+            elif num_objectives == 3:
+                env_ax.scatter(
+                    env_pfs[exp_name][:,0], # first fitnesses
+                    env_pfs[exp_name][:,1], # second fitnesses
+                    env_pfs[exp_name][:,2], # third fitnesses
+                    label=experiment_dicts[exp_name]["label"],
+                    s=SCATTER_DOT_SIZE,
+                    c=exp_palette[exp_num]
+                )
+                env_ax.set_xlabel(env_dict["reward_labels"][0])
+                env_ax.set_ylabel(env_dict["reward_labels"][1])
+                env_ax.set_zlabel(env_dict["reward_labels"][2])
 
-        
-        env_ax.set_title(env_dict["label"])
+            
+            env_ax.set_title(env_dict["label"])
 
     return env_ax
 

@@ -7,7 +7,7 @@ import seaborn as sns
 
 sns.set_palette("muted")
 
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 
 def get_metrics(dirname: str, experiment_name: str) -> pd.DataFrame:
@@ -28,8 +28,9 @@ def get_metrics(dirname: str, experiment_name: str) -> pd.DataFrame:
 
 def calculate_quartile_metrics(parent_dirname: str,
     env_names: List[str],
+    env_dicts: List[Dict],
     experiment_names: List[str],
-)-> Tuple[List, List, List, List]:
+)-> Tuple[Dict, Dict, Dict, Dict]:
 
     """
     Calculate quartile metrics across all experiment replications, in all envrionments
@@ -39,15 +40,16 @@ def calculate_quartile_metrics(parent_dirname: str,
     print("  Calculating quartile metrics for all experiments, in all environments")
     print("---------------------------------------------------------------------------")
 
-    all_metrics = []
-    all_medians = []
-    all_lqs = []
-    all_uqs = []
+    all_metrics = {}
+    all_medians = {}
+    all_lqs = {}
+    all_uqs = {}
 
     for env in env_names:
 
         print("\n")
         print(f" ENV: {env}")
+        print("---------------")
 
         dirname = os.path.join(parent_dirname, env)
         _analysis_dir = os.path.join(dirname, "analysis/")
@@ -60,27 +62,32 @@ def calculate_quartile_metrics(parent_dirname: str,
         os.makedirs(_emitter_plots_dir, exist_ok=True)
         os.makedirs(_median_metrics_dir, exist_ok=True)
 
-        metrics_list = []
-        median_metrics_list = []
-        lq_metrics_list = []
-        uq_metrics_list = []
+        metrics_dict = {}
+        median_metrics_dict = {}
+        lq_metrics_dict = {}
+        uq_metrics_dict = {}
     
         for experiment_name in experiment_names:
 
-            experiment_metrics = get_metrics(dirname, experiment_name)
-            median_metrics = experiment_metrics.median(numeric_only=True)
-            median_metrics.to_csv(f"{_median_metrics_dir}{experiment_name}_median_metrics")
-            lq_metrics = experiment_metrics.apply(lambda x: x.quantile(0.25))
-            uq_metrics =  experiment_metrics.apply(lambda x: x.quantile(0.75))
-            metrics_list.append(experiment_metrics)
-            median_metrics_list.append(median_metrics)
-            lq_metrics_list.append(lq_metrics)
-            uq_metrics_list.append(uq_metrics)
+            if experiment_name not in env_dicts[env]["exceptions"]:
+                print("\n")
+                print(f" EXP: {experiment_name}")
+                
+                experiment_metrics = get_metrics(dirname, experiment_name)
+                median_metrics = experiment_metrics.median(numeric_only=True)
+                median_metrics.to_csv(f"{_median_metrics_dir}{experiment_name}_median_metrics")
+                lq_metrics = experiment_metrics.apply(lambda x: x.quantile(0.25))
+                uq_metrics =  experiment_metrics.apply(lambda x: x.quantile(0.75))
+                
+                metrics_dict[experiment_name] = experiment_metrics
+                median_metrics_dict[experiment_name] = median_metrics
+                lq_metrics_dict[experiment_name] = lq_metrics
+                uq_metrics_dict[experiment_name] = uq_metrics
 
-        all_metrics.append(metrics_list)
-        all_medians.append(median_metrics_list)
-        all_lqs.append(lq_metrics_list)
-        all_uqs.append(uq_metrics_list)
+        all_metrics[env] = metrics_dict
+        all_medians[env] = median_metrics_dict
+        all_lqs[env] = lq_metrics_dict
+        all_uqs[env] = uq_metrics_dict
 
     return all_metrics, all_medians, all_lqs, all_uqs
 

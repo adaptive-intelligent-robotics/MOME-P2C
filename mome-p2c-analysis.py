@@ -125,6 +125,7 @@ env_dicts = {
         "action_size":8,
         "observation_size":87,
         "reference_point": [-350, -4500],
+        "exceptions": [],
     },
     "ant_tri": {
         "label": "Ant-3",
@@ -132,6 +133,7 @@ env_dicts = {
         "action_size":8,
         "observation_size":87,
         "reference_point": [-1200, -1200, -4500],
+        "exceptions": ["pga", "nsga2", "spea2"],
     },
     "halfcheetah_multi": {
         "label": "HalfCheetah-2",
@@ -139,6 +141,7 @@ env_dicts = {
         "action_size":6,
         "observation_size":18,
         "reference_point": [-2000, -800],
+        "exceptions": [],
     },
     "hopper_multi": {
         "label": "Hopper-2",
@@ -146,6 +149,7 @@ env_dicts = {
         "action_size":3,
         "observation_size":11,
         "reference_point":[-50, -3],
+        "exceptions": [],
     },
     "hopper_tri": {
         "label": "Hopper-3",
@@ -153,13 +157,15 @@ env_dicts = {
         "action_size":3,
         "observation_size":11,
         "reference_point": [-750, -3, 0],
+        "exceptions": ["pga", "nsga2", "spea2"],
     },
     "walker2d_multi": {
         "label": "Walker-2",
         "reward_labels": ["Forward", "Energy"],
         "action_size":6,
         "observation_size":17,
-        "reference_point": [-210, -15]
+        "reference_point": [-210, -15],
+        "exceptions": [],
     },
 }
 

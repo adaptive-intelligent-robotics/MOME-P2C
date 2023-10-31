@@ -118,14 +118,15 @@ def plot_experiments_grid(parent_dirname: str,
         for col, env in enumerate(env_names):
             fig_num = row*num_cols + col
             ax.ravel()[fig_num] = plot_grid_square(ax.ravel()[fig_num],
-                median_metrics = medians[col],
-                lq_metrics = lqs[col],
-                uq_metrics = uqs[col],
+                median_metrics = medians[env],
+                lq_metrics = lqs[env],
+                uq_metrics = uqs[env],
                 x_range = x_range,
                 metrics_label=metric,
                 experiment_names=experiment_names,
                 experiment_dicts = experiment_dicts,
                 colour_frame = colour_frame,
+                exceptions = env_dicts[env]["exceptions"],
             )
 
             if row == 0:
@@ -184,6 +185,7 @@ def plot_grid_square(
     experiment_names: List[str],
     experiment_dicts: Dict,
     colour_frame: pd.DataFrame,
+    exceptions: List,
 ):
     """
     Plots one subplot of grid, normalising scores
@@ -192,48 +194,51 @@ def plot_grid_square(
 
     # Find the maximum uq of all experiments in order to scale metrics
     y_max = 0
-    for exp_num, exp_name in enumerate(experiment_names):
-        final_score = np.array(uq_metrics[exp_num][metrics_label])[-1]
-        if final_score > y_max:
-            y_max = final_score
+    for exp_name in experiment_names:
+        if exp_name not in exceptions:
+            final_score = np.array(uq_metrics[exp_name][metrics_label])[-1]
+            if final_score > y_max:
+                y_max = final_score
 
     # Getting the correct color palette
     exp_palette = colour_frame["Colour"].values
     sns.set_palette(exp_palette)
 
     for exp_num, exp_name in enumerate(experiment_names):
-        medians = np.array(median_metrics[exp_num][metrics_label])
-        if metrics_label == "coverage":
-            scaled_medians = medians
-        else:
-            scaled_medians = medians*100/y_max
-        ax.plot(x_range, 
-            scaled_medians,
-            label=experiment_dicts[exp_name]["label"],
-            linestyle=experiment_dicts[exp_name]["grid_plot_linestyle"],
-            color=exp_palette[exp_num]
-        )
-        # set all scales to be same
-        ax.set_ylim([0, 101])
+        if exp_name not in exceptions:
+            medians = np.array(median_metrics[exp_name][metrics_label])
+            if metrics_label == "coverage":
+                scaled_medians = medians
+            else:
+                scaled_medians = medians*100/y_max
+            ax.plot(x_range, 
+                scaled_medians,
+                label=experiment_dicts[exp_name]["label"],
+                linestyle=experiment_dicts[exp_name]["grid_plot_linestyle"],
+                color=exp_palette[exp_num]
+            )
+            # set all scales to be same
+            ax.set_ylim([0, 101])
 
     # Do this second so that legend labels are correct
     for exp_num, exp_name in enumerate(experiment_names):
-        lqs = np.array(lq_metrics[exp_num][metrics_label])
-        uqs = np.array(uq_metrics[exp_num][metrics_label])
+        if exp_name not in exceptions:
+            lqs = np.array(lq_metrics[exp_name][metrics_label])
+            uqs = np.array(uq_metrics[exp_name][metrics_label])
 
-        if metrics_label == "coverage":
-            scaled_lqs = lqs
-            scaled_uqs = uqs
-        else:
-            scaled_lqs = lqs*100/y_max
-            scaled_uqs = uqs*100/y_max 
+            if metrics_label == "coverage":
+                scaled_lqs = lqs
+                scaled_uqs = uqs
+            else:
+                scaled_lqs = lqs*100/y_max
+                scaled_uqs = uqs*100/y_max 
 
-        ax.fill_between(x_range, 
-            scaled_lqs,
-            scaled_uqs,
-            alpha=0.2,
-            color=exp_palette[exp_num]
-        )
+            ax.fill_between(x_range, 
+                scaled_lqs,
+                scaled_uqs,
+                alpha=0.2,
+                color=exp_palette[exp_num]
+            )
 
     customize_axis(ax)
 

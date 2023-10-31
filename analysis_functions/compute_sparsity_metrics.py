@@ -58,24 +58,25 @@ def calculate_sparsity_metrics(
         env_qd_sparsities = {}
     
         for experiment_name in experiment_names:
-            print("\n")
-            print(f" ENV: {env}      EXP: {experiment_name}")
-            
-            global_sparsity_scores, qd_sparsity_scores = find_sparsity_metrics(
-                dirname,
-                experiment_name,
-                reconstruction_fn,
-                min_rewards[env],
-                max_rewards[env],
+            if experiment_name not in env_dicts[env]["exceptions"]:
+                print("\n")
+                print(f" ENV: {env}      EXP: {experiment_name}")
                 
-            )
-            print("Global Sparsity Median: ", np.median(np.array(global_sparsity_scores)))
-            print("Global Sparsity STD: ", np.std(np.array(global_sparsity_scores)))
-            print("QD Sparsity Median: ", np.median(np.array(qd_sparsity_scores)))
-            print("QD Sparsity STD: ", np.std(np.array(qd_sparsity_scores)))
-            
-            env_global_sparsities[experiment_name] = global_sparsity_scores
-            env_qd_sparsities[experiment_name] = qd_sparsity_scores
+                global_sparsity_scores, qd_sparsity_scores = find_sparsity_metrics(
+                    dirname,
+                    experiment_name,
+                    reconstruction_fn,
+                    min_rewards[env],
+                    max_rewards[env],
+                    
+                )
+                print("Global Sparsity Median: ", np.median(np.array(global_sparsity_scores)))
+                print("Global Sparsity STD: ", np.std(np.array(global_sparsity_scores)))
+                print("QD Sparsity Median: ", np.median(np.array(qd_sparsity_scores)))
+                print("QD Sparsity STD: ", np.std(np.array(qd_sparsity_scores)))
+                
+                env_global_sparsities[experiment_name] = global_sparsity_scores
+                env_qd_sparsities[experiment_name] = qd_sparsity_scores
         
         env_global_sparsities = pd.DataFrame.from_dict(env_global_sparsities)
         env_qd_sparsities = pd.DataFrame.from_dict(env_qd_sparsities)
