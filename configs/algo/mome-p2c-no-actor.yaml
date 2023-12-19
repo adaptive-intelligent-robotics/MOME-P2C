@@ -10,7 +10,7 @@ mutation_qpg_batch_size: 128
 
 # Preferenced-conditioned actor hidden layer sizes
 pc_actor_uniform_preference_sampling: False
-inject_actor_batch_size: 64
+inject_actor_batch_size: 0
 
 # Which sampling method to use for the preference conditioned policy gradient
 sampler: "keep"

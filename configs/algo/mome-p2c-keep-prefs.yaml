@@ -6,11 +6,11 @@ preference_conditioned: True
 
 # Emitter params
 mutation_ga_batch_size: 128
-mutation_qpg_batch_size: 128
+mutation_qpg_batch_size: 64
 
 # Preferenced-conditioned actor hidden layer sizes
 pc_actor_uniform_preference_sampling: True
-inject_actor_batch_size: 0
+inject_actor_batch_size: 64
 
 # Which sampling method to use for the preference conditioned policy gradient
 sampler: "keep"
